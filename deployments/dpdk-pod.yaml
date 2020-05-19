@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dpdk-vfio
+  labels:
+    app: dpdk-vfio
+  namespace: default
+spec:
+  containers:
+    - name: dpdk-vfio
+      image: localhost/dpdk:latest
+      imagePullPolicy: Never
+      command: ["sleep"]
+      args: [ "100000000000000000"]
+      securityContext:
+        privileged: true
+# SRIOV resources:
+      resources:
+        requests:
+          intel.com/700VF: '1'
+          memory: "4Gi"
+          cpu: "4"
+        limits:
+          intel.com/700VF: '1'
+          memory: "4Gi"
+          cpu: "4"
+      volumeMounts:
+      - name: dev
+        mountPath: /dev
+        readOnly: false
+  volumes:
+    - name: dev
+      hostPath:
+        path: /dev
+  runtimeClassName: kata
+
