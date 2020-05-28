@@ -1,11 +1,23 @@
 #!/bin/bash
 
-# TODO: Write some some tests
+die() {
+    echo FAILED "$@" >&2
+    exit 1
+}
 
-dmesg
-lspci -vv
+echo "VFIO smoke test container starting"
 
-ls -l /sys/kernel/iommu_groups/*/devices
-ls -l /dev/vfio/
+ls -l /dev/vfio
 
-sleep infinity
+(
+    set -e
+
+    if [ ! -c /dev/vfio/vfio ]; then
+	die "Container doesn't see VFIO control device"
+    fi
+
+    VFIOGROUPS="$(ls /dev/vfio | grep -v vfio)"
+    NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
+    echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
+    false
+) || exec /bin/bash
