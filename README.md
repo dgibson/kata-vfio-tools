@@ -8,8 +8,8 @@
 
 Build the test containers (it takes a long time)
 
-    sudo podman build -t fedorat containers/dpdk
-    sudo podman build -t fedorat containers/smoke
+    sudo podman build -t vfio-dpdk containers/dpdk
+    sudo podman build -t vfio-smoke containers/smoke
 
 List your PCI devices' vendor/device ids:
 
