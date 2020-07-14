@@ -1,0 +1,39 @@
+From 6da03c893312dcf2f01c59d2b7689c22ecb36c7e Mon Sep 17 00:00:00 2001
+From: "Pradipta Kr. Banerjee" <pradipta.banerjee@gmail.com>
+Date: Tue, 14 Jul 2020 17:00:13 +0000
+Subject: [PATCH] kata-osbuilder: Copy hooks to initrd
+
+This adds support for copying the hooks directory to the rootfs
+at a well-defined path - /usr/share/oci/hooks
+This will enable OCI hooks to be used with Kata containers
+
+Signed-off-by: bpradipt@in.ibm.com
+---
+ kata-osbuilder.sh | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/kata-osbuilder.sh b/kata-osbuilder.sh
+index 518d607..231d7b0 100755
+--- a/kata-osbuilder.sh
++++ b/kata-osbuilder.sh
+@@ -174,6 +174,7 @@ generate_rootfs()
+     local dracut_conf_dir="./dracut/dracut.conf.d"
+     local tmp_initrd=`mktemp --tmpdir=${DRACUT_IMAGES}`
+     unlink "$tmp_initrd"
++    local hooks_dir="/usr/libexec/kata-containers/hooks"
+
+     # Build the initrd
+     echo -e "+ Building dracut initrd"
+@@ -195,6 +196,10 @@ generate_rootfs()
+     echo "+ Copying agent directory tree into place"
+     cp -ar ${agent_dir}/* ${DRACUT_ROOTFS}
+
++    echo "+ Copying hooks directory into place"
++    mkdir -p ${DRACUT_ROOTFS}/usr/share/oci
++    cp -ar ${hooks_dir} ${DRACUT_ROOTFS}/usr/share/oci
++
+     # Make kata specific adjustments to our rootfs
+     echo "Calling osbuilder rootfs.sh on extracted rootfs"
+     AGENT_SOURCE_BIN="${agent_source_bin}" \
+--
+2.27.0
