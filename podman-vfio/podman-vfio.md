@@ -19,6 +19,11 @@ hook for rebinding the SRIOV device to VFIO using podman
 
 - Host system booted with `intel_iommu=on`
 - The host device to be added to Kata container should be bounded to VFIO driver
+Note:
+In certain cases you might have to use the unsafe_interrupts to allow passthrough of PCI devices to the VM
+```
+echo "options vfio_iommu_type1 allow_unsafe_interrupts=1" > /etc/modprobe.d/iommu_unsafe_interrupts.conf
+```
 
 
 ## Build kata-agent with fix for guest hooks
@@ -36,8 +41,8 @@ This will build the `kata-agent` binary
 ## Create dracut based initrd
 Perform the following steps as `root` user
 1. Copy updated kata-agent binary `/usr/libexec/kata-containers/agent/usr/bin`
-2. Copy hooks directory to `/usr/libexec/kata-containers`
-3. Patch `/usr/libexec/kata-containers/osbuilder/kata-osbuilder.sh` using `0001-kata-osbuilder-Copy-hooks-to-initrd.patch`
+2. Copy hooks directory to `/usr/libexec/kata-containers/agent/usr/share/oci/`
+3. Apply the patch to add vfio modules  `cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t < 0001-Add-additional-VFIO-modules-to-the-initrd.patch`
 4. Build initrd by running `/usr/libexec/kata-containers/osbuilder/kata-osbuilder.sh`
 
 ## Kata configuration.toml settings

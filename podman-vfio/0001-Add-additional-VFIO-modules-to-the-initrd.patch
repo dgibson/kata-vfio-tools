@@ -1,0 +1,39 @@
+From 65d8c8b65362cf93f58180ad9799d376c72b7412 Mon Sep 17 00:00:00 2001
+From: "Pradipta Kr. Banerjee" <pradipta.banerjee@gmail.com>
+Date: Tue, 21 Jul 2020 16:40:11 +0000
+Subject: [PATCH] Add additional VFIO modules to the initrd
+
+Signed-off-by: pradipta.banerjee@gmail.com
+---
+ 15-dracut-fedora.conf | 2 +-
+ 15-dracut-rhel.conf   | 2 ++
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/15-dracut-fedora.conf b/15-dracut-fedora.conf
+index 364ddb3..4dac797 100644
+--- a/15-dracut-fedora.conf
++++ b/15-dracut-fedora.conf
+@@ -18,7 +18,7 @@ drivers+="virtio_console "
+ # virtio 9p. Could be dropped eventually, virtio-fs covers us
+ drivers+="9p 9pnet_virtio "
+ # vfio
+-drivers+="vfio-pci vfio"
++drivers+="vfio-pci vfio vfio_iommu_type1 irqbypass vfio_virqfd"
+
+
+ # Fedora: extra dracut modules
+diff --git a/15-dracut-rhel.conf b/15-dracut-rhel.conf
+index b93ca71..89edb10 100644
+--- a/15-dracut-rhel.conf
++++ b/15-dracut-rhel.conf
+@@ -15,6 +15,8 @@ drivers+="virtio_blk "
+ drivers+="virtio_scsi "
+ # virtio serial. Could be dropped eventually, vsock covers us
+ drivers+="virtio_console "
++# vfio
++drivers+="vfio-pci vfio vfio_iommu_type1 irqbypass vfio_virqfd"
+
+
+ # Fedora: extra dracut modules
+--
+2.27.0
