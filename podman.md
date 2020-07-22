@@ -34,6 +34,7 @@ echo "options vfio_iommu_type1 allow_unsafe_interrupts=1" > /etc/modprobe.d/iomm
 ```
 
 ## Build kata-agent with fix for guest hooks
+
 A new dracut based initrd needs to be created having the built `kata-agent` binary
 ```
 $ mkdir -p ${GOPATH}/src/github.com/kata-containers
@@ -45,14 +46,34 @@ $ make
 ```
 This will build the `kata-agent` binary
 
+## Build vfio-hook
+
+The source for the vfio hook program is in `vfio-hook/` in this repository.
+```
+$ cd vfio-hook
+$ go build -v .
+```
+
+## Add additional VFIO modules to osbuilder dracut configuration
+
+As `root`, from the top directory of this repository:
+
+```
+# (cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t ) < 0001-Add-additional-VFIO-modules-to-the-initrd.patch`
+```
+
+Alternatively, you can manually edit
+`/usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d/15-dracut-fedora.conf`
+to add the modules `vfio_iommu_type1`, `irqbypass`, `vfio_virqfd` to
+the `drivers` variable.
+
 ## Create dracut based initrd
 
-Perform the following steps as `root`
+Run as `root`:
 
-1. Copy updated kata-agent binary `/usr/libexec/kata-containers/agent/usr/bin`
-2. Copy hooks directory to `/usr/libexec/kata-containers/agent/usr/share/oci/`
-3. Apply the patch to add vfio modules  `cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t < 0001-Add-additional-VFIO-modules-to-the-initrd.patch`
-4. Build initrd by running `/usr/libexec/kata-containers/osbuilder/kata-osbuilder.sh`
+```
+# ./scripts/vfio-osbuilder.sh
+```
 
 ## Kata configuration.toml settings
 Ensure the following settings are present in configuration.toml
@@ -63,13 +84,26 @@ guest_hook_path = "/usr/share/oci/hooks"
 kernel_params = "systemd.unified_cgroup_hierarchy=0`
 ```
 
+## Rebinding host device
+
+1. Set up SR-IOV virtual functions if desired
+2. Pick a device to pass into your container, and find it's PCI address from `lspci`
+3. If the address is `0000:02:00.0` use the `scripts/rebind.sh` to rebind it to the VFIO driver
+```
+# ./scripts/rebind.sh 0000:02:00.0
+Device 0000:02:00.0 (0x10ec:0x522a) is in IOMMU group 9
+Group 9 contains 1 devices [0000:02:00.0]
+Loading VFIO driver...done
+Unbinding 0000:02:00.0 from rtsx_pci...done
+Adding IDs to VFIO driver...done
+```
+
 ## Running
 
-Assuming the host has a VFIO device `/dev/vfio/11` which you want to
-provide to Kata container
+Assuming the host has IOMMU group 9 as above start the container with:
 
 ```
-podman run -it --rm -v /dev:/dev --device=/dev/vfio/11 --runtime=/usr/bin/kata-runtime fedora sh
+# podman --runtime=kata-runtime run -it --rm -v /dev:/dev --device=/dev/vfio/9 fedora sh
 ```
 
 Inside the container shell you should see a VFIO device
