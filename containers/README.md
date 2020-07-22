@@ -1,7 +1,11 @@
 # VFIO testing containers
 
-Build the test containers with the commands
+To build all the containers use:
+```
+# make
+```
 
-    sudo podman build -t vfio-dpdk dpdk
-    sudo podman build -t vfio-smoke smoke
-
+To build an individual container, e.g. `vfio-smoke` use
+```
+# make smoke
+```
