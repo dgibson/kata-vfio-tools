@@ -1,9 +1,12 @@
 FROM fedora
 
-MAINTAINER Adrian Moreno <amorenoz@redhat.com>
+MAINTAINER David Gibson <dgibson@redhat.com>
 
-RUN dnf groupinstall -y "Development Tools"
-RUN dnf install -y wget numactl-devel git make numactl numatop strace ltrace pciutils which driverctl gcc 
+# Add a layer which has downloaded the package lists, to speed up rebuild
+RUN dnf -y makecache
+
+# Install things necessary to build the tests
+RUN dnf install -y git gcc
 
 # Install debugging utils
 RUN dnf -y install strace ltrace gdb procps util-linux coreutils
