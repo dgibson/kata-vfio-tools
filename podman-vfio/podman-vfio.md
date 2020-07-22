@@ -94,19 +94,7 @@ initrd="/usr/share/kata-containers/initrd-vfio"
 https://github.com/bpradipt/kata-hooks
 
 ## Debugging
-Enable Kata VM console by ensuring the following setting in `configuration.toml`
 
-```
-kernel_params = "agent.debug_console"
-```
-
-Run the Kata container, and get the kata container id *(assuming only one Kata container running on the system)*
-```
-CID=$(kata-runtime list -q)
-```
-Access Kata VM console for debugging
-```
-socat stdin,raw,echo=0,escape=0x11 unix-connect:"/run/vc/vm/${CID}/console.sock"
-```
-
-Access guest hook logs under `/tmp/`
+If you access the Kata VM console using [these
+instructions](../README.md#Debugging), the guest hook logs can be
+found in `/tmp`.

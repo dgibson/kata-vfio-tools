@@ -1,0 +1,9 @@
+#! /bin/sh
+
+ID="${1}"
+if [ -z "$ID" ]; then
+   ID=$(sudo kata-runtime list -q)
+fi
+
+CONSOLE="/run/vc/vm/$ID/console.sock"
+sudo socat stdin,raw,echo=0,escape=0x11 unix-connect:"${CONSOLE}"

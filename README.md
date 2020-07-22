@@ -9,6 +9,20 @@ for VFIO devices.
 
 /scripts has some useful scripts
 
+## Debugging
+
+To debug the Kata andbox VM, you can add a console by adding
+`agent.debug_console` to the `kernel_params` variable in
+`configuration.toml`.
+
+You can then connect to that debug console of a Kata container by using:
+```
+./scripts/kata-console [<container's UUID>]
+```
+
+If the UUID is omitted, it will connect to the last Kata container
+started (very useful when you're only running one container at a time.
+
 ## Contact
 
 David Gibson <david@gibson.dropbear.id.au>
