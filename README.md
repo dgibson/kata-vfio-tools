@@ -9,6 +9,10 @@ for VFIO devices.
 
 /scripts has some useful scripts
 
+## Podman
+
+[Instructions for using VFIO in Kata containers via Podman](podman.md)
+
 ## Debugging
 
 To debug the Kata andbox VM, you can add a console by adding

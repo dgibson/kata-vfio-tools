@@ -1,10 +1,17 @@
 # Introduction
+
 This document describes the steps required to use Kata guest agent
 hook for rebinding the SRIOV device to VFIO using podman
 
 ## Assumptions
-- Fedora 32+ distro
-- Kata runtime packages installed from Fedora distro repo
+
+- Fedora 32+ or RHEL8.2+ distro
+- Kata packages installed distro repo
+    `kata-runtime`
+	`kata-osbuilder`
+	`kata-shim`
+	`kata-proxy`
+	`kata-agent`
 - Golang is installed
 - GOPATH is setup
 - A host system with supported PCI/SRIOV vendor:device -
@@ -16,15 +23,15 @@ hook for rebinding the SRIOV device to VFIO using podman
 
     List taken from OpenShift supported SRIOV device [list](https://docs.openshift.com/container-platform/4.2/networking/multiple_networks/configuring-sr-iov.html#supported-devices_configuring-sr-iov)
     with `8086:1521` added to handle the test infra
-
 - Host system booted with `intel_iommu=on`
-- The host device to be added to Kata container should be bounded to VFIO driver
+- Host system booted with `systemd.unified_cgroup_hierarchy=0`
+- The host device to be added to Kata container should be bound to VFIO driver
+
 Note:
 In certain cases you might have to use the unsafe_interrupts to allow passthrough of PCI devices to the VM
 ```
 echo "options vfio_iommu_type1 allow_unsafe_interrupts=1" > /etc/modprobe.d/iommu_unsafe_interrupts.conf
 ```
-
 
 ## Build kata-agent with fix for guest hooks
 A new dracut based initrd needs to be created having the built `kata-agent` binary
@@ -39,7 +46,9 @@ $ make
 This will build the `kata-agent` binary
 
 ## Create dracut based initrd
-Perform the following steps as `root` user
+
+Perform the following steps as `root`
+
 1. Copy updated kata-agent binary `/usr/libexec/kata-containers/agent/usr/bin`
 2. Copy hooks directory to `/usr/libexec/kata-containers/agent/usr/share/oci/`
 3. Apply the patch to add vfio modules  `cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t < 0001-Add-additional-VFIO-modules-to-the-initrd.patch`
@@ -50,12 +59,14 @@ Ensure the following settings are present in configuration.toml
 
 ```
 machine_type = "q35"
-sandbox_cgroup_only=true
 guest_hook_path = "/usr/share/oci/hooks"
+kernel_params = "systemd.unified_cgroup_hierarchy=0`
 ```
 
 ## Running
-Assuming the host has a VFIO device `/dev/vfio/11` which you want to provide to Kata container
+
+Assuming the host has a VFIO device `/dev/vfio/11` which you want to
+provide to Kata container
 
 ```
 podman run -it --rm -v /dev:/dev --device=/dev/vfio/11 --runtime=/usr/bin/kata-runtime fedora sh
