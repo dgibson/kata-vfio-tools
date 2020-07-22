@@ -135,9 +135,6 @@ kernel="/usr/share/kata-containers/vmlinuz-vfio"
 initrd="/usr/share/kata-containers/initrd-vfio"
 ```
 
-## Hook Source Code
-https://github.com/bpradipt/kata-hooks
-
 ## Debugging
 
 If you access the Kata VM console using [these
