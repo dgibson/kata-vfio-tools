@@ -8,6 +8,7 @@ die() {
 echo "VFIO smoke test container starting"
 
 ls -l /dev/vfio
+lspci -D
 
 (
     set -e
@@ -19,5 +20,20 @@ ls -l /dev/vfio
     VFIOGROUPS="$(ls /dev/vfio | grep -v vfio)"
     NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
     echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
-    false
-) || exec /bin/bash
+
+    for group in $VFIOGROUPS; do
+	echo "Testing group $group"
+	DEVS=$(cd /sys/kernel/iommu_groups/$group/devices && echo *)
+	for dev in $DEVS; do
+	    # Ignore bridges
+	    if [ -d /sys/bus/pci/devices/$dev/pci_bus ]; then
+		continue
+	    fi
+	    echo "Testing group $group: $dev"
+	    ./vfio-pci-device-open $group $dev
+	    ./vfio-iommu-map-unmap $dev
+	done
+    done
+)
+
+exec /bin/bash
