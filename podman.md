@@ -103,8 +103,12 @@ Adding IDs to VFIO driver...done
 Assuming the host has IOMMU group 9 as above start the container with:
 
 ```
-# podman --runtime=kata-runtime run -it --rm -v /dev:/dev --device=/dev/vfio/9 fedora sh
+# podman --runtime=kata-runtime run -it --rm -v /dev:/dev --cap-add=CAP_IPC_LOCK --device=/dev/vfio/9 fedora sh
 ```
+
+Note: the `CAP_IPC_LOCK` is because programs need to lock memory in
+order to create IOMMU mappings.  This is needed for regular
+containers, not just Kata containers.
 
 Inside the container shell you should see a VFIO device
 ```
