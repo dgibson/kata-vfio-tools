@@ -6,23 +6,20 @@ MAINTAINER David Gibson <dgibson@redhat.com>
 RUN dnf -y makecache
 
 # Install things necessary to build the tests
-RUN dnf install -y git gcc
+RUN dnf install -y git-core gcc make
 
 # Install debugging utils
-RUN dnf -y install strace ltrace gdb procps util-linux coreutils
+RUN dnf -y install strace ltrace gdb procps-ng pciutils
 
-ARG repo="https://github.com/awilliam/tests.git"
+ARG repo="https://github.com/dgibson/vfio-tests.git"
+
 ENV REPO $repo
 
 WORKDIR /usr/src
 RUN git clone $REPO
 
-WORKDIR /usr/src/tests
-RUN for file in `ls -x vfio*.c`;  do \
-    bin=$(echo $file | cut -d '.' -f 1); \
-    gcc -o $bin $file; \
-    cp $bin /usr/local/bin || echo "oops"; \
-    done
+WORKDIR /usr/src/vfio-tests
+RUN make
 
 COPY entrypoint.sh /
 ENTRYPOINT ["/entrypoint.sh"]
