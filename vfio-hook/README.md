@@ -1,0 +1,4 @@
+# Build
+```
+go build -v .
+```
