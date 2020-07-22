@@ -12,10 +12,7 @@ RUN dnf install -y git gcc
 RUN dnf -y install strace ltrace gdb procps util-linux coreutils
 
 ARG repo="https://github.com/awilliam/tests.git"
-ARG version=master
-
 ENV REPO $repo
-ENV VER $version
 
 WORKDIR /usr/src
 RUN git clone $REPO
