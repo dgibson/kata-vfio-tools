@@ -34,6 +34,9 @@ lspci -D
 	    ./vfio-iommu-map-unmap $dev
 	done
     done
+
+    echo ""
+    echo "So far, so good"
 )
 
 exec /bin/bash
