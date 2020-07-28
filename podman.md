@@ -59,7 +59,7 @@ $ go build -v .
 As `root`, from the top directory of this repository:
 
 ```
-# (cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t ) < 0001-Add-additional-VFIO-modules-to-the-initrd.patch`
+# (cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t ) < 0001-Add-additional-VFIO-modules-to-the-initrd.patch
 ```
 
 Alternatively, you can manually edit
