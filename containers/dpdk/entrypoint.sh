@@ -1,27 +1,66 @@
 #!/bin/bash
 
+die() {
+    echo FAILED "$@" >&2
+    exit 1
+}
+
+echo "VFIO dpdk test container starting"
+
+ls -l /dev/vfio
+lspci -D
+
+(
+    set -e
+
+    if [ ! -c /dev/vfio/vfio ]; then
+	die "Container doesn't see VFIO control device"
+    fi
+
+    VFIOGROUPS="$(ls /dev/vfio | grep -v vfio)"
+    NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
+    echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
+
+    for group in $VFIOGROUPS; do
+	echo "Testing group $group"
+	DEVS=$(cd /sys/kernel/iommu_groups/$group/devices && echo *)
+	for dev in $DEVS; do
+	    # Ignore bridges
+	    if [ -d /sys/bus/pci/devices/$dev/pci_bus ]; then
+		continue
+	    fi
+	    echo "Testing group $group: $dev"
+	    ./vfio-pci-device-open $group $dev
+	    ./vfio-iommu-map-unmap $dev
+	done
+    done
+
+    echo ""
+    echo "So far, so good"
+)
+
 # Mount Hugepages. FIXME: This should be done by kata-agent
 mkdir -p /dev/hugepages; mount -t hugetlbfs nodev /dev/hugepages
 
-CMD="testmpd -l0,1 --log-level=lib.eal:8"
+CMD="testpmd -l0,1 --log-level=lib.eal:8"
 
+group=$VFIO_GROUPS[0]
+devices=$(cd /sys/kernel/iommu_groups/$group/devices && echo *)
 
-#FIXME: We should be able to use an ENV var here but the PCI addreses won't match
-devices=("0000:01:01.0")
+echo "Using group $group ($devices)"
 
-for dev in "${devices[@]}"
-do
+for dev in "$devices"; do
     CMD="$CMD -w$dev"
 done
 
 CMD="$CMD -- --stats-period 2 --forward-mode=txonly -a"
 
 # RUN Debug commands
-for dev in "${devices[@]}"
-do
+for dev in "$devices"; do
     lspci -vv -s $dev
 done
 dmesg
 
 $CMD
 
+exec /bin/bash
