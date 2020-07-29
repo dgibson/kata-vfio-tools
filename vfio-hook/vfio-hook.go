@@ -53,7 +53,6 @@ func main() {
 	//logrus.SetLevel(logrus.DebugLevel)
 	log.Debugf("Started VFIO OCI hook version %s", version)
 
-	start := flag.Bool("s", true, "Start the VFIO hook")
 	printVersion := flag.Bool("version", false, "Print the hook's version")
 	flag.Parse()
 
@@ -62,12 +61,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	if *start {
-		log.Info("Starting VFIO hook")
-		if err := startVfioOciHook(); err != nil {
-			log.Fatal(err)
-			return
-		}
+	log.Info("Starting VFIO hook")
+	if err := startVfioOciHook(); err != nil {
+		log.Fatal(err)
+		return
 	}
 }
 
