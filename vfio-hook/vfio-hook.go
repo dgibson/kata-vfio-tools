@@ -174,39 +174,45 @@ func doRebind(deviceMap map[string]string) error {
 
 	for _, vd := range pciSupportedVendorDeviceList {
 		if bdf, found := deviceMap[vd]; found {
-			log.Infof("Found device ", bdf)
-			//check if the device is already bound to VFIO
-			driverPath := filepath.Join(pciDeviceFile, bdf, "driver")
-			if _, err := os.Stat(driverPath); err == nil {
-				driver, err := os.Readlink(driverPath)
-				if err != nil {
-					log.Errorf("Reading driver details for device(%s) returned error: %s", bdf, err)
-					continue
-				}
-				if string(driver) == "vfio-pci" {
-					log.Infof("Device (%s) is already bound to vfio", bdf)
-					continue
-				} else {
-					log.Infof("Unbinding device (%s) from current driver", bdf)
-					unbindPath := filepath.Join(pciDeviceFile, bdf, "driver/unbind")
-					err = ioutil.WriteFile(unbindPath, []byte(bdf), 0200)
-					if err != nil {
-						log.Errorf("Unbinding driver for device(%s) returned error: %s", bdf, err)
-						continue
-					}
-				}
-			}
-
-			log.Infof("Binding device (%s) to vfio", bdf)
-			newidPath := filepath.Join(vfioDeviceFile, "new_id")
-			newid := strings.Replace(vd, ":", " ", 1)
-			err := ioutil.WriteFile(newidPath, []byte(newid), 0200)
+			err := rebindOne(bdf, vd)
 			if err != nil {
-				log.Errorf("Binding device(%s) to vfio returned error: %s", bdf, err)
+				log.Errorf("Error rebinding %s: %s", bdf, err)
 				continue
 			}
-			log.Infof("Successfully bound device(%s) to vfio", bdf)
 		}
 	}
+	return nil
+}
+
+func rebindOne(bdf string, vd string) error {
+	log.Infof("Found device ", bdf)
+
+	driverPath := filepath.Join(pciDeviceFile, bdf, "driver")
+	if _, err := os.Stat(driverPath); err == nil {
+		driver, err := os.Readlink(driverPath)
+		if err != nil {
+			return fmt.Errorf("Could not read driver: %s", err)
+		}
+		if string(driver) == "vfio-pci" {
+			log.Infof("%s is already bound to vfio", bdf)
+			return nil
+		} else {
+			log.Infof("Unbinding %s from current driver", bdf)
+			unbindPath := filepath.Join(pciDeviceFile, bdf, "driver/unbind")
+			err = ioutil.WriteFile(unbindPath, []byte(bdf), 0200)
+			if err != nil {
+				return fmt.Errorf("Could not unbind driver: %s", err)
+			}
+		}
+	}
+
+	log.Infof("Binding device (%s) to vfio", bdf)
+	newidPath := filepath.Join(vfioDeviceFile, "new_id")
+	newid := strings.Replace(vd, ":", " ", 1)
+	err := ioutil.WriteFile(newidPath, []byte(newid), 0200)
+	if err != nil {
+		return fmt.Errorf("Could not bind vfio driver: %s", err)
+	}
+	log.Infof("Successfully rebound %s to vfio", bdf)
 	return nil
 }
