@@ -10,24 +10,22 @@ echo "VFIO dpdk test container starting"
 ls -l /dev/vfio
 lspci -D
 
-(
-    set -e
+set -e
 
-    if [ ! -c /dev/vfio/vfio ]; then
-	die "Container doesn't see VFIO control device"
-    fi
+if [ ! -c /dev/vfio/vfio ]; then
+    die "Container doesn't see VFIO control device"
+fi
 
-    VFIOGROUPS="$(ls /dev/vfio | grep -v vfio)"
-    NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
-    echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
-)
+VFIOGROUPS="$(ls /dev/vfio | grep -v vfio)"
+NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
+echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
 
 # Mount Hugepages. FIXME: This should be done by kata-agent
 mkdir -p /dev/hugepages; mount -t hugetlbfs nodev /dev/hugepages
 
 CMD="testpmd -l0,1 --log-level=lib.eal:8"
 
-group=$VFIO_GROUPS[0]
+group=$(echo $VFIOGROUPS | cut -f1)
 devices=$(cd /sys/kernel/iommu_groups/$group/devices && echo *)
 
 echo "Using group $group ($devices)"
