@@ -18,12 +18,20 @@ var (
 	// version is the version string of the hook. Set at build time.
 	version = "0.1"
 	log     = logrus.New()
+
 	//List taken from
 	// https://docs.openshift.com/container-platform/4.2/networking/multiple_networks/configuring-sr-iov.html#supported-devices_configuring-sr-iov
 	// 0x10ec:0x522a added for testing on my laptop (it's an SD
 	// card reader which is interesting solely because I'm not
 	// generally using it on the host) -dgibson
-	pciSupportedVendorDeviceList = []string{"0x8086:0x1521", "0x8086:0x1520", "0x8086:0x158b", "0x15b3:0x1015", "0x15b3:0x1017", "0x10ec:0x522a"}
+	supportedPciDevices = map[string]bool {
+		"0x8086:0x1521": true,
+		"0x8086:0x1520": true,
+		"0x8086:0x158b": true,
+		"0x15b3:0x1015": true,
+		"0x15b3:0x1017": true,
+		"0x10ec:0x522a": true,
+	}
 )
 
 const (
@@ -172,7 +180,10 @@ func doRebind(deviceMap map[string]string) error {
 		log.Debugf("DeviceMap entries: vd: %s => bdf: %s", key, element)
 	}
 
-	for _, vd := range pciSupportedVendorDeviceList {
+	for vd, supported := range supportedPciDevices {
+		if !supported {
+			continue
+		}
 		if bdf, found := deviceMap[vd]; found {
 			err := rebindOne(bdf, vd)
 			if err != nil {
