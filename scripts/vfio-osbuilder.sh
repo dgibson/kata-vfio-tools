@@ -2,7 +2,7 @@
 
 KATASRC=$GOPATH/src/github.com/kata-containers
 AGENTDIR=/usr/libexec/kata-containers/agent
-HOOKPATH=/usr/share/oci
+HOOKPATH=/usr/share/oci/hooks
 BUILDER=/usr/libexec/kata-containers/osbuilder/kata-osbuilder.sh
 
 if [ ! -e $BUILDER ]; then
