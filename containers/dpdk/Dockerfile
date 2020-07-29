@@ -9,7 +9,7 @@ RUN dnf -y makecache
 RUN dnf install -y git-core make gcc numactl-devel
 
 # Install debugging utils
-#RUN dnf -y install strace ltrace gdb procps pciutils
+RUN dnf install -y strace procps pciutils
 
 ARG repo=https://github.com/DPDK/dpdk.git
 ARG version=master

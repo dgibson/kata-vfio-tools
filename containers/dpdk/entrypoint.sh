@@ -20,23 +20,6 @@ lspci -D
     VFIOGROUPS="$(ls /dev/vfio | grep -v vfio)"
     NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
     echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
-
-    for group in $VFIOGROUPS; do
-	echo "Testing group $group"
-	DEVS=$(cd /sys/kernel/iommu_groups/$group/devices && echo *)
-	for dev in $DEVS; do
-	    # Ignore bridges
-	    if [ -d /sys/bus/pci/devices/$dev/pci_bus ]; then
-		continue
-	    fi
-	    echo "Testing group $group: $dev"
-	    ./vfio-pci-device-open $group $dev
-	    ./vfio-iommu-map-unmap $dev
-	done
-    done
-
-    echo ""
-    echo "So far, so good"
 )
 
 # Mount Hugepages. FIXME: This should be done by kata-agent
@@ -59,7 +42,8 @@ CMD="$CMD -- --stats-period 2 --forward-mode=txonly -a"
 for dev in "$devices"; do
     lspci -vv -s $dev
 done
-dmesg
+
+echo "About to run: $CMD"
 
 $CMD
 
