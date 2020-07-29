@@ -40,20 +40,18 @@ const (
 )
 
 func main() {
-
-	log.Out = os.Stdout
+	log.Out = os.Stderr
 
 	dname, err := ioutil.TempDir("", "vfiohooklog")
 	fname := filepath.Join(dname, "vfiohook.log")
 	file, err := os.OpenFile(fname, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
-		log.Infof("Log file: %s", fname)
 		log.Out = file
 	} else {
-		log.Info("Failed to log to file, using default stderr")
+		log.Warning("Failed to log to file, using default stderr")
 	}
 	//logrus.SetLevel(logrus.DebugLevel)
-	log.Infof("Started VFIO OCI hook version %s", version)
+	log.Debugf("Started VFIO OCI hook version %s", version)
 
 	start := flag.Bool("s", true, "Start the VFIO hook")
 	printVersion := flag.Bool("version", false, "Print the hook's version")
@@ -67,9 +65,7 @@ func main() {
 	if *start {
 		log.Info("Starting VFIO hook")
 		if err := startVfioOciHook(); err != nil {
-			//Hook should not fail
-			//log.Fatal(err)
-			log.Info(err)
+			log.Fatal(err)
 			return
 		}
 	}
@@ -89,21 +85,16 @@ func startVfioOciHook() error {
 	}
 
 	//log spec State to file
-	log.Infof("spec.State is %v", s)
-
-	bundlePath := s.Bundle
-	containerPid := s.Pid
-
-	log.Infof("Rootfs for container (%d) is at: %s", containerPid, bundlePath)
+	log.Debugf("Container state: %v", s)
 
 	//For Kata the config.json is in a different path
 	configJsonPath := filepath.Join("/run/libcontainer", s.ID, "config.json")
 
-	log.Infof("Config.json location: %s", configJsonPath)
+	log.Debugf("Reading config.json from:: %s", configJsonPath)
 	//Read the JSON
 	jsonData, err := ioutil.ReadFile(configJsonPath)
 	if err != nil {
-		log.Errorf("unable to read config.json %s", err)
+		log.Errorf("Failed to read config.json: %s", err)
 		return err
 	}
 
@@ -117,7 +108,7 @@ func startVfioOciHook() error {
 func scanDevices() {
 	bdfList, err := ioutil.ReadDir(pciDeviceFile)
 	if err != nil {
-		log.Errorf("Unable to get device list %s", err)
+		log.Errorf("Failed to readdir %s: %s", pciDeviceFile, err)
 		return
 	}
 
@@ -126,12 +117,12 @@ func scanDevices() {
 		devicePath := filepath.Join(pciDeviceFile, bdf.Name(), "device")
 		vendor, err := ioutil.ReadFile(vendorPath)
 		if err != nil {
-			log.Errorf("Fetching vendor id for device(%s) returned error: %s", bdf, err)
+			log.Errorf("Failed to read %s: %s", vendorPath, err)
 			continue
 		}
 		device, err := ioutil.ReadFile(devicePath)
 		if err != nil {
-			log.Errorf("Fetching device id for device(%s) returned error: %s", bdf, err)
+			log.Errorf("Failed to read %s: %s", devicePath, err)
 			continue
 		}
 		vd := fmt.Sprintf("%s:%s", strings.TrimSuffix(string(vendor), "\n"), strings.TrimSuffix(string(device), "\n"))
@@ -139,7 +130,7 @@ func scanDevices() {
 		if supportedPciDevices[vd] {
 			err = rebindOne(bdf.Name(), vd)
 			if err != nil {
-				log.Errorf("Error rebinding %s: %s", bdf, err)
+				log.Errorf("%s",  err)
 				continue
 			}
 		}
@@ -149,34 +140,33 @@ func scanDevices() {
 }
 
 func rebindOne(bdf string, vd string) error {
-	log.Infof("Found device ", bdf)
+	log.Debugf("Attempting to rebind device %s to vfio", bdf)
 
 	driverPath := filepath.Join(pciDeviceFile, bdf, "driver")
 	if _, err := os.Stat(driverPath); err == nil {
 		driver, err := os.Readlink(driverPath)
 		if err != nil {
-			return fmt.Errorf("Could not read driver: %s", err)
+			return fmt.Errorf("Failed to read %s: %s", driverPath, err)
 		}
 		if string(driver) == "vfio-pci" {
-			log.Infof("%s is already bound to vfio", bdf)
+			log.Infof("Device %s is already bound to vfio", bdf)
 			return nil
 		} else {
-			log.Infof("Unbinding %s from current driver", bdf)
+			log.Infof("Unbinding %s from driver (%s)", bdf, string(driver))
 			unbindPath := filepath.Join(pciDeviceFile, bdf, "driver/unbind")
 			err = ioutil.WriteFile(unbindPath, []byte(bdf), 0200)
 			if err != nil {
-				return fmt.Errorf("Could not unbind driver: %s", err)
+				return fmt.Errorf("Failed to unbind driver (%s): %s", string(driver), err)
 			}
 		}
 	}
 
-	log.Infof("Binding device (%s) to vfio", bdf)
 	newidPath := filepath.Join(vfioDeviceFile, "new_id")
 	newid := strings.Replace(vd, ":", " ", 1)
 	err := ioutil.WriteFile(newidPath, []byte(newid), 0200)
 	if err != nil {
-		return fmt.Errorf("Could not bind vfio driver: %s", err)
+		return fmt.Errorf("Failed to write %s: %s", vfioDeviceFile, err)
 	}
-	log.Infof("Successfully rebound %s to vfio", bdf)
+	log.Infof("Completed rebinding device %s to vfio", bdf)
 	return nil
 }
