@@ -109,43 +109,16 @@ func startVfioOciHook() error {
 
 	log.Debugf("Config.json contents: %s", jsonData)
 
-	err = bindVFIO()
-	if err != nil {
-		log.Infof("Error in binding device to vfio driver", err)
-		return err
-	}
+	scanDevices()
 
 	return nil
 }
 
-//Bind each supported vendor:device to vfio-pci
-func bindVFIO() error {
-
-	log.Infof("bindVFIO: Start")
-
-	//Get PCI device list
-	//For each PCI device in the list get vendor:device and create a map
-	//key:"vendor:device", value:"device"
-	devMap := createDeviceMap()
-
-	//For each matching key:"vendor:device", rebind driver
-	if len(devMap) != 0 {
-		doRebind(devMap)
-	}
-
-	return nil
-}
-
-//Create a Map of vendor:device and corresponding pci:bdf
-func createDeviceMap() map[string]string {
-
-	log.Infof("creating DeviceMap")
-	deviceMap := make(map[string]string)
-
+func scanDevices() {
 	bdfList, err := ioutil.ReadDir(pciDeviceFile)
 	if err != nil {
 		log.Errorf("Unable to get device list %s", err)
-		return nil
+		return
 	}
 
 	for _, bdf := range bdfList {
@@ -161,38 +134,18 @@ func createDeviceMap() map[string]string {
 			log.Errorf("Fetching device id for device(%s) returned error: %s", bdf, err)
 			continue
 		}
-		key := fmt.Sprintf("%s:%s", strings.TrimSuffix(string(vendor), "\n"), strings.TrimSuffix(string(device), "\n"))
-		deviceMap[key] = bdf.Name()
-	}
+		vd := fmt.Sprintf("%s:%s", strings.TrimSuffix(string(vendor), "\n"), strings.TrimSuffix(string(device), "\n"))
 
-	log.Debugf("DeviceMap %v", deviceMap)
-
-	return deviceMap
-
-}
-
-//Rebind the devices to vfio-pci driver
-func doRebind(deviceMap map[string]string) error {
-
-	log.Infof("Rebinding driver for the devices")
-	//Find if supported vendor:device is there in the device map
-	for key, element := range deviceMap {
-		log.Debugf("DeviceMap entries: vd: %s => bdf: %s", key, element)
-	}
-
-	for vd, supported := range supportedPciDevices {
-		if !supported {
-			continue
-		}
-		if bdf, found := deviceMap[vd]; found {
-			err := rebindOne(bdf, vd)
+		if supportedPciDevices[vd] {
+			err = rebindOne(bdf.Name(), vd)
 			if err != nil {
 				log.Errorf("Error rebinding %s: %s", bdf, err)
 				continue
 			}
 		}
 	}
-	return nil
+
+	return
 }
 
 func rebindOne(bdf string, vd string) error {
