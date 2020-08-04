@@ -25,6 +25,7 @@ hook for rebinding the SRIOV device to VFIO using podman
     with `8086:1521` added to handle the test infra
 - Host system booted with `intel_iommu=on`
 - Host system booted with `systemd.unified_cgroup_hierarchy=0`
+- SELinux is set to permissive mode on the host
 - The host device to be added to Kata container should be bound to VFIO driver
 
 Note:
@@ -32,6 +33,33 @@ In certain cases you might have to use the unsafe_interrupts to allow passthroug
 ```
 echo "options vfio_iommu_type1 allow_unsafe_interrupts=1" > /etc/modprobe.d/iommu_unsafe_interrupts.conf
 ```
+
+## Build the host side Kata components
+
+From the top-level directory of this tree, run:
+```
+$ make
+```
+
+This will download and build the sources for `kata-runtime`,
+`kata-proxy` and `kata-shim`.  It will install them locally into
+`$KATAPREFIX` - by default `build/prefix` within this working tree.
+
+It will also build a Kata `configuration.toml` suitable for using VFIO
+in `$KATAPREFIX/etc/configuration.toml` which the components are built
+do use instead of the default system one.
+
+## Configure podman to use the locally built runtime
+
+This will make podman aware of a new runtime, called `kata-vfio` which
+will use the components built locally above.  As root, run:
+```
+# make podman-conf-kata-vfio
+```
+
+You should only do this once.  If you move this tree, you'll need to
+manually remove the stasnza from
+`/usr/share/containers/containers.conf` and re-run it.
 
 ## Build kata-agent with fix for guest hooks
 
