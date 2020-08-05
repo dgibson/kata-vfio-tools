@@ -12,6 +12,7 @@ DRACUTDIR = $(OSBUILDER)/dracut/dracut.conf.d
 
 GO = go
 KATA_UPSTREAM = https://github.com/kata-containers
+VFIO_REPO = https://github.com/dgibson
 
 export GOPATH = $(BUILD)/go
 KATASRC = $(GOPATH)/src/github.com/kata-containers
@@ -19,8 +20,9 @@ RUNTIME_PKGS = runtime proxy shim
 DRACUTFILES = 15-dracut-fedora.conf 99-vfio.conf
 OSBUILDER_DRACUTFILES = $(DRACUTFILES:%=$(DRACUTDIR)/%)
 
-GOSOURCES = $(RUNTIME_PKGS:%=$(KATASRC)/%) \
-	$(KATASRC)/agent $(KATASRC)/osbuilder
+UPSTREAM_SOURCES = $(RUNTIME_PKGS:%=$(KATASRC)/%) \
+	$(KATASRC)/osbuilder
+VFIO_SOURCES = $(KATASRC)/agent
 
 all: runtime $(INITRD)
 
@@ -57,9 +59,13 @@ $(OSBUILDER_SCRIPT): vfio-kata-osbuilder.sh.template
 	sed 's!%KATAPREFIX%!$(KATAPREFIX)!;s!%AGENT_TREE%!$(AGENT_TREE)!;s!%OSBUILDER%!$(OSBUILDER)!' < $< > $@
 	chmod +x $@
 
-$(GOSOURCES): %:
+$(UPSTREAM_SOURCES): %:
 	mkdir -p $(KATASRC)
 	cd $(KATASRC) && git clone $(KATA_UPSTREAM)/$(notdir $*)
+
+$(VFIO_SOURCES): %:
+	mkdir -p $(KATASRC)
+	cd $(KATASRC) && git clone -b vfio $(VFIO_REPO)/kata-$(notdir $*) $(notdir $*)
 
 clean:
 	chmod -R u+w $(BUILD)
