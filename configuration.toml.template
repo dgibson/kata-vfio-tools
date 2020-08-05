@@ -112,13 +112,13 @@ disable_block_device_use = false
 # Shared file system type:
 #   - virtio-9p (default)
 #   - virtio-fs
-shared_fs = "virtio-9p"
+shared_fs = "virtio-fs"
 
 # Path to vhost-user-fs daemon.
-virtio_fs_daemon = "%KATAPREFIX%/bin/virtiofsd"
+virtio_fs_daemon = "/usr/libexec/virtiofsd"
 
 # Default size of DAX cache in MiB
-virtio_fs_cache_size = 1024
+virtio_fs_cache_size = 0
 
 # Extra args for virtiofsd daemon
 #
@@ -141,7 +141,7 @@ virtio_fs_extra_args = []
 #
 #  - always
 #    Metadata, data, and pathname lookup are cached in guest and never expire.
-virtio_fs_cache = "auto"
+virtio_fs_cache = "always"
 
 # Block storage driver to be used for the hypervisor in case the container
 # rootfs is backed by a block device. This is virtio-scsi, virtio-blk
@@ -461,7 +461,7 @@ disable_guest_seccomp=true
 # The sandbox cgroup path is the parent cgroup of a container with the PodSandbox annotation.
 # The sandbox cgroup is constrained if there is no container type annotation.
 # See: https://godoc.org/github.com/kata-containers/runtime/virtcontainers#ContainerType
-sandbox_cgroup_only=false
+sandbox_cgroup_only=true
 
 # Enabled experimental feature list, format: ["a", "b"].
 # Experimental features are features not stable enough for production,
