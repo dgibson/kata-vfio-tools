@@ -1,22 +1,30 @@
 BUILD = $(CURDIR)/build
 KATAPREFIX = $(BUILD)/prefix
 KATACONFIG = $(KATAPREFIX)/etc/configuration.toml
+PODMAN_CONF = /usr/share/containers/containers.conf
+INITRD = $(KATAPREFIX)/var/cache/kata-containers/kata-containers-initrd.img
+OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
+AGENT_TREE = $(BUILD)/agent
+AGENT_BIN = $(AGENT_TREE)/usr/bin/kata-agent
+HOOK_BIN = $(AGENT_TREE)/usr/share/oci/hooks/prestart/vfio-hook
+OSBUILDER = $(KATASRC)/osbuilder
+DRACUTDIR = $(OSBUILDER)/dracut/dracut.conf.d
 
 GO = go
-PODMAN_CONF = /usr/share/containers/containers.conf
 KATA_UPSTREAM = https://github.com/kata-containers
 
 export GOPATH = $(BUILD)/go
 KATASRC = $(GOPATH)/src/github.com/kata-containers
 RUNTIME_PKGS = runtime proxy shim
+DRACUTFILES = 15-dracut-fedora.conf 99-vfio.conf
+OSBUILDER_DRACUTFILES = $(DRACUTFILES:%=$(DRACUTDIR)/%)
 
-GOSOURCES = $(RUNTIME_PKGS:%=$(KATASRC)/%)
+GOSOURCES = $(RUNTIME_PKGS:%=$(KATASRC)/%) \
+	$(KATASRC)/agent $(KATASRC)/osbuilder
 
-all: runtime
+all: runtime $(INITRD)
 
 runtime: $(RUNTIME_PKGS:%=%-install) $(KATACONFIG)
-
-runtime-sources: $(GOSOURCES)
 
 $(RUNTIME_PKGS:%=%-build): %-build: $(KATASRC)/%
 	make -C $< PREFIX=$(KATAPREFIX) SYSCONFIG=$(KATACONFIG)
@@ -28,12 +36,34 @@ $(KATACONFIG): configuration.toml.template
 	mkdir -p $(dir $@)
 	sed 's!%KATAPREFIX%!$(KATAPREFIX)!' < $< > $@
 
+agent: $(KATASRC)/agent
+	make -C $<
+
+initrd: $(INITRD)
+
+$(INITRD): $(OSBUILDER_SCRIPT) $(AGENT_BIN) $(HOOK_BIN) $(OSBUILDER_DRACUTFILES)
+	$<
+
+$(DRACUTDIR)/%: dracut/% $(OSBUILDER)
+	cp $< $@
+
+$(AGENT_BIN): agent
+	make -C $(KATASRC)/agent DESTDIR=$(AGENT_TREE) install
+
+$(HOOK_BIN): vfio-hook/vfio-hook.go
+	cd vfio-hook && $(GO) build -o $@ -v .
+
+$(OSBUILDER_SCRIPT): vfio-kata-osbuilder.sh.template
+	sed 's!%KATAPREFIX%!$(KATAPREFIX)!;s!%AGENT_TREE%!$(AGENT_TREE)!;s!%OSBUILDER%!$(OSBUILDER)!' < $< > $@
+	chmod +x $@
+
 $(GOSOURCES): %:
 	mkdir -p $(KATASRC)
 	cd $(KATASRC) && git clone $(KATA_UPSTREAM)/$(notdir $*)
 
 clean:
-	rm -rf build
+	chmod -R u+w $(BUILD)
+	rm -rf $(BUILD)
 	rm -f *~
 
 podman-conf-kata-vfio: podman-kata-vfio.conf.template

@@ -6,13 +6,11 @@ hook for rebinding the SRIOV device to VFIO using podman
 ## Assumptions
 
 - Fedora 32+ or RHEL8.2+ distro
-- Kata packages installed distro repo
-    `kata-runtime`
-	`kata-osbuilder`
-	`kata-shim`
-	`kata-proxy`
-	`kata-agent`
-- Golang is installed
+- These packages installed:
+    `podman`
+	`qemu-system-x86` (or `qemu-kvm` on RHEL)
+	`busybox`
+	`golang`
 - GOPATH is setup
 - A host system with supported PCI/SRIOV vendor:device -
     `8086:1521`
@@ -34,22 +32,24 @@ In certain cases you might have to use the unsafe_interrupts to allow passthroug
 echo "options vfio_iommu_type1 allow_unsafe_interrupts=1" > /etc/modprobe.d/iommu_unsafe_interrupts.conf
 ```
 
-## Build the host side Kata components
+## Build the Kata components from source
 
 From the top-level directory of this tree, run:
 ```
 $ make
 ```
 
-This will download and build the sources for `kata-runtime`,
-`kata-proxy` and `kata-shim`.  It will install them locally into
-`$KATAPREFIX` - by default `build/prefix` within this working tree.
+This will do a number of things:
+- Download and build the sources for a number of Kata components
+- Install the components into `$KATAPREFIX` (by default `build/prefix`) so that it doesn't disrupt your main system
+- Build some VFIO specific scripts
+- Build a new Kata OS image configured for VFIO support, installing it in `$KATAPREFIX`
+- Build a Kata `configuration.toml`  suitable for VFIO
 
-It will also build a Kata `configuration.toml` suitable for using VFIO
-in `$KATAPREFIX/etc/configuration.toml` which the components are built
-do use instead of the default system one.
+The source-build components are built so that they will look for the
+OS image and configuration built here.
 
-## Configure podman to use the locally built runtime
+## Configure podman to use the source-built runtime
 
 This will make podman aware of a new runtime, called `kata-vfio` which
 will use the components built locally above.  As root, run:
@@ -61,55 +61,17 @@ You should only do this once.  If you move this tree, you'll need to
 manually remove the stasnza from
 `/usr/share/containers/containers.conf` and re-run it.
 
-## Build kata-agent with fix for guest hooks
-
-A new dracut based initrd needs to be created having the built `kata-agent` binary
-```
-$ mkdir -p ${GOPATH}/src/github.com/kata-containers
-$ cd ${GOPATH}/src/github.com/kata-containers
-$ git clone https://github.com/bpradipt/agent.git
-$ cd agent
-$ git checkout -b hook-fix origin/hook-fix
-$ make
-```
-This will build the `kata-agent` binary
-
-## Build vfio-hook
-
-The source for the vfio hook program is in `vfio-hook/` in this repository.
-```
-$ cd vfio-hook
-$ go build -v .
-```
-
-## Add additional VFIO modules to osbuilder dracut configuration
-
-As `root`, from the top directory of this repository:
-
-```
-# (cd /usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d && patch -t ) < 0001-Add-additional-VFIO-modules-to-the-initrd.patch
-```
-
-Alternatively, you can manually edit
-`/usr/libexec/kata-containers/osbuilder/dracut/dracut.conf.d/15-dracut-fedora.conf`
-to add the modules `vfio_iommu_type1`, `irqbypass`, `vfio_virqfd` to
-the `drivers` variable.
-
-## Create dracut based initrd
-
-Run as `root`:
-
-```
-# ./scripts/vfio-osbuilder.sh
-```
-
 ## Kata configuration.toml settings
-Ensure the following settings are present in configuration.toml
+
+The `configuation.toml` built from this tree should be suitable.
+However, if you want to try this with your own `confugration.toml` you
+will need to add these settings:
 
 ```
 machine_type = "q35"
 guest_hook_path = "/usr/share/oci/hooks"
 kernel_params = "systemd.unified_cgroup_hierarchy=0`
+enable_iommu = true
 ```
 
 ## Rebinding host device

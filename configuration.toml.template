@@ -12,8 +12,8 @@
 
 [hypervisor.qemu]
 path = "/usr/bin/qemu-system-x86_64"
-kernel = "/var/cache/kata-containers/vmlinuz.container"
-initrd = "/var/cache/kata-containers/kata-containers-initrd.img"
+kernel = "%KATAPREFIX%/var/cache/kata-containers/vmlinuz.container"
+initrd = "%KATAPREFIX%/var/cache/kata-containers/kata-containers-initrd.img"
 machine_type = "q35"
 
 # Optional space-separated list of options to pass to the guest kernel.
