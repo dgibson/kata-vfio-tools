@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	spec "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
@@ -24,10 +25,11 @@ var (
 	// 0x17a0:0x9750 added for testing on my laptop (it's an SD
 	// card reader which is interesting solely because I'm not
 	// generally using it on the host) -dgibson
-	supportedPciDevices = map[string]bool {
+	supportedPciDevices = map[string]bool{
 		"0x8086:0x1521": true,
 		"0x8086:0x1520": true,
 		"0x8086:0x158b": true,
+		"0x8086:0x154c": true,
 		"0x15b3:0x1015": true,
 		"0x15b3:0x1017": true,
 		"0x17a0:0x9750": true,
@@ -50,9 +52,12 @@ func main() {
 	} else {
 		log.Warning("Failed to log to file, using default stderr")
 	}
-	//logrus.SetLevel(logrus.DebugLevel)
+	//Set default to Debug for debugging during dev
+	log.SetLevel(logrus.DebugLevel)
 	log.Debugf("Started VFIO OCI hook version %s", version)
 
+	//This can be used when the hook needs to be run standalone
+	force := flag.Bool("f", false, "Force start the VFIO hook")
 	printVersion := flag.Bool("version", false, "Print the hook's version")
 	flag.Parse()
 
@@ -62,40 +67,44 @@ func main() {
 	}
 
 	log.Info("Starting VFIO hook")
-	if err := startVfioOciHook(); err != nil {
+	time.Sleep(10 * time.Second) //hack rescan()
+	if err := startVfioOciHook(*force); err != nil {
 		log.Fatal(err)
 		return
 	}
 }
 
-func startVfioOciHook() error {
+func startVfioOciHook(force bool) error {
 	//Hook receives container State in Stdin
 	//https://github.com/opencontainers/runtime-spec/blob/master/config.md#posix-platform-hooks
 	//https://github.com/opencontainers/runtime-spec/blob/master/runtime.md#state
 
-	var s spec.State
-	reader := bufio.NewReader(os.Stdin)
-	decoder := json.NewDecoder(reader)
-	err := decoder.Decode(&s)
-	if err != nil {
-		return err
+	if !force {
+		//Force option will not be getting container spec since it's run standalone
+		var s spec.State
+		reader := bufio.NewReader(os.Stdin)
+		decoder := json.NewDecoder(reader)
+		err := decoder.Decode(&s)
+		if err != nil {
+			return err
+		}
+
+		//log spec State to file
+		log.Debugf("Container state: %v", s)
+
+		//For Kata the config.json is in a different path
+		configJsonPath := filepath.Join("/run/libcontainer", s.ID, "config.json")
+
+		log.Debugf("Reading config.json from:: %s", configJsonPath)
+		//Read the JSON
+		jsonData, err := ioutil.ReadFile(configJsonPath)
+		if err != nil {
+			log.Errorf("Failed to read config.json: %s", err)
+			return err
+		}
+
+		log.Debugf("Config.json contents: %s", jsonData)
 	}
-
-	//log spec State to file
-	log.Debugf("Container state: %v", s)
-
-	//For Kata the config.json is in a different path
-	configJsonPath := filepath.Join("/run/libcontainer", s.ID, "config.json")
-
-	log.Debugf("Reading config.json from:: %s", configJsonPath)
-	//Read the JSON
-	jsonData, err := ioutil.ReadFile(configJsonPath)
-	if err != nil {
-		log.Errorf("Failed to read config.json: %s", err)
-		return err
-	}
-
-	log.Debugf("Config.json contents: %s", jsonData)
 
 	scanDevices()
 
@@ -110,6 +119,7 @@ func scanDevices() {
 	}
 
 	for _, bdf := range bdfList {
+		log.Debugf("bdf = ", bdf)
 		vendorPath := filepath.Join(pciDeviceFile, bdf.Name(), "vendor")
 		devicePath := filepath.Join(pciDeviceFile, bdf.Name(), "device")
 		vendor, err := ioutil.ReadFile(vendorPath)
@@ -123,11 +133,12 @@ func scanDevices() {
 			continue
 		}
 		vd := fmt.Sprintf("%s:%s", strings.TrimSuffix(string(vendor), "\n"), strings.TrimSuffix(string(device), "\n"))
+		log.Debugf("vd = ", vd)
 
 		if supportedPciDevices[vd] {
 			err = rebindOne(bdf.Name(), vd)
 			if err != nil {
-				log.Errorf("%s",  err)
+				log.Errorf("%s", err)
 				continue
 			}
 		}
