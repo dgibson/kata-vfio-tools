@@ -1,6 +1,6 @@
 BUILD = $(CURDIR)/build
 KATAPREFIX = $(BUILD)/prefix
-KATACONFIG = $(KATAPREFIX)/etc/configuration.toml
+KATACONFIG = $(KATAPREFIX)/etc/kata-containers/configuration.toml
 PODMAN_CONF = /usr/share/containers/containers.conf
 INITRD = $(KATAPREFIX)/var/cache/kata-containers/kata-containers-initrd.img
 OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
@@ -9,6 +9,11 @@ AGENT_BIN = $(AGENT_TREE)/usr/bin/kata-agent
 HOOK_BIN = $(AGENT_TREE)/usr/share/oci/hooks/prestart/vfio-hook
 OSBUILDER = $(KATASRC)/osbuilder
 DRACUTDIR = $(OSBUILDER)/dracut/dracut.conf.d
+
+QEMU := /usr/libexec/qemu-kvm
+ifneq ($(wildcard $(QEMU)),$(QEMU))
+QEMU := /usr/bin/qemu-system-x86_64
+endif
 
 GO = go
 KATA_UPSTREAM = https://github.com/kata-containers
@@ -34,9 +39,9 @@ $(RUNTIME_PKGS:%=%-build): %-build: $(KATASRC)/%
 $(RUNTIME_PKGS:%=%-install): %-install: $(KATASRC)/% %-build
 	make -C $< PREFIX=$(KATAPREFIX) SYSCONFIG=$(KATACONFIG) install
 
-$(KATACONFIG): configuration.toml.template
+$(KATACONFIG): configuration.toml.template Makefile
 	mkdir -p $(dir $@)
-	sed 's!%KATAPREFIX%!$(KATAPREFIX)!' < $< > $@
+	sed 's!%KATAPREFIX%!$(KATAPREFIX)!;s!%QEMU%!$(QEMU)!' < $< > $@
 
 agent: $(KATASRC)/agent
 	make -C $<

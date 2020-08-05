@@ -11,7 +11,7 @@
 # XXX:   Type: kata
 
 [hypervisor.qemu]
-path = "/usr/bin/qemu-system-x86_64"
+path = "%QEMU%"
 kernel = "%KATAPREFIX%/var/cache/kata-containers/vmlinuz.container"
 initrd = "%KATAPREFIX%/var/cache/kata-containers/kata-containers-initrd.img"
 machine_type = "q35"
