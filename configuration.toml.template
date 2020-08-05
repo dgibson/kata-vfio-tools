@@ -27,7 +27,7 @@ machine_type = "q35"
 # To see the list of default parameters, enable hypervisor debug, create a
 # container and look for 'default-kernel-parameters' log entries.
 #kernel_params = "agent.debug_console console=ttyS0"
-kernel_params = "agent.debug_console systemd.unified_cgroup_hierarchy=0"
+kernel_params = "agent.debug_console systemd.unified_cgroup_hierarchy=0 hugepages=512"
 
 # Path to the firmware.
 # If you want that qemu uses the default firmware leave this option empty
@@ -48,7 +48,7 @@ cpu_features="pmu=off"
 # < 0                             --> will be set to the actual number of physical cores
 # > 0 <= number of physical cores --> will be set to the specified number
 # > number of physical cores      --> will be set to the actual number of physical cores
-default_vcpus = 1
+default_vcpus = 4
 
 # Default maximum number of vCPUs per SB/VM:
 # unspecified or == 0             --> will be set to the actual number of physical cores or to the maximum number
