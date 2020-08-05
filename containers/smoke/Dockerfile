@@ -2,14 +2,16 @@ FROM fedora
 
 MAINTAINER David Gibson <dgibson@redhat.com>
 
+ENV DNFFLAGS --disablerepo=updates
+
 # Add a layer which has downloaded the package lists, to speed up rebuild
-RUN dnf -y makecache
+RUN dnf $DNFFLAGS -y makecache
 
 # Install things necessary to build the tests
-RUN dnf install -y git-core gcc make
+RUN dnf $DNFFLAGS -y install git-core gcc make
 
 # Install debugging utils
-RUN dnf -y install strace ltrace gdb procps-ng pciutils
+RUN dnf $DNFFLAGS -y install strace ltrace gdb procps-ng pciutils
 
 ARG repo="https://github.com/dgibson/vfio-tests.git"
 
