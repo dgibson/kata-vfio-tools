@@ -21,7 +21,7 @@ var (
 
 	//List taken from
 	// https://docs.openshift.com/container-platform/4.2/networking/multiple_networks/configuring-sr-iov.html#supported-devices_configuring-sr-iov
-	// 0x10ec:0x522a added for testing on my laptop (it's an SD
+	// 0x17a0:0x9750 added for testing on my laptop (it's an SD
 	// card reader which is interesting solely because I'm not
 	// generally using it on the host) -dgibson
 	supportedPciDevices = map[string]bool {
@@ -30,7 +30,7 @@ var (
 		"0x8086:0x158b": true,
 		"0x15b3:0x1015": true,
 		"0x15b3:0x1017": true,
-		"0x10ec:0x522a": true,
+		"0x17a0:0x9750": true,
 	}
 )
 
