@@ -74,6 +74,12 @@ kernel_params = "systemd.unified_cgroup_hierarchy=0`
 enable_iommu = true
 ```
 
+In addition, if you want to run DPDK in the container, you will need
+at least 2 cores assigned to the VM.  e.g.
+```
+default_vcpus = 2
+```
+
 ## Rebinding host device
 
 1. Set up SR-IOV virtual functions if desired
