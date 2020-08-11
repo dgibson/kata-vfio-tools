@@ -1,4 +1,4 @@
-CONTAINERS = smoke dpdk
+CONTAINERS = smoke dpdk true
 
 .PHONY: $(CONTAINERS)
 

@@ -7,13 +7,7 @@ MAINTAINER David Gibson <dgibson@redhat.com>
 # Add a layer which has downloaded the package lists, to speed up rebuild
 RUN dnf $DNFFLAGS -y makecache
 
-# DPDK tools
-RUN dnf $DNFFLAGS -y install dpdk-tools
+WORKDIR /root
 
-# Install debugging utils
-RUN dnf $DNFFLAGS -y install strace procps pciutils
-
-RUN echo Dummy1
-
-COPY entrypoint.sh /
-ENTRYPOINT ["/entrypoint.sh"]
+COPY entrypoint.sh /root
+ENTRYPOINT ["/root/entrypoint.sh"]
