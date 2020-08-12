@@ -16,8 +16,6 @@ import (
 )
 
 var (
-	// version is the version string of the hook. Set at build time.
-	version = "0.1"
 	log     = logrus.New()
 
 	//List taken from
@@ -54,17 +52,11 @@ func main() {
 	}
 	//Set default to Debug for debugging during dev
 	log.SetLevel(logrus.DebugLevel)
-	log.Debugf("Started VFIO OCI hook version %s", version)
+	log.Debugf("Started VFIO OCI hook")
 
 	//This can be used when the hook needs to be run standalone
 	force := flag.Bool("f", false, "Force start the VFIO hook")
-	printVersion := flag.Bool("version", false, "Print the hook's version")
 	flag.Parse()
-
-	if *printVersion {
-		fmt.Println(version)
-		os.Exit(0)
-	}
 
 	log.Info("Starting VFIO hook")
 	time.Sleep(10 * time.Second) //hack rescan()
