@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	spec "github.com/opencontainers/runtime-spec/specs-go"
+	specs "github.com/opencontainers/runtime-spec/specs-go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -73,7 +73,7 @@ func startVfioOciHook(force bool) error {
 
 	if !force {
 		//Force option will not be getting container spec since it's run standalone
-		var s spec.State
+		var s specs.State
 		reader := bufio.NewReader(os.Stdin)
 		decoder := json.NewDecoder(reader)
 		err := decoder.Decode(&s)
@@ -81,7 +81,7 @@ func startVfioOciHook(force bool) error {
 			return err
 		}
 
-		//log spec State to file
+		//log specs State to file
 		log.Debugf("Container state: %v", s)
 
 		//For Kata the config.json is in a different path
