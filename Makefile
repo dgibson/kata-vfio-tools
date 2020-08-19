@@ -25,9 +25,9 @@ RUNTIME_PKGS = runtime proxy shim
 DRACUTFILES = 15-dracut-fedora.conf 99-vfio.conf
 OSBUILDER_DRACUTFILES = $(DRACUTFILES:%=$(DRACUTDIR)/%)
 
-UPSTREAM_SOURCES = $(RUNTIME_PKGS:%=$(KATASRC)/%) \
+UPSTREAM_SOURCES = $(KATASRC)/proxy $(KATASRC)/shim \
 	$(KATASRC)/osbuilder
-VFIO_SOURCES = $(KATASRC)/agent
+VFIO_SOURCES = $(KATASRC)/agent $(KATASRC)/runtime
 
 all: runtime $(INITRD)
 
