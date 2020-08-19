@@ -1,0 +1,9 @@
+#! /bin/sh
+
+ID="${1}"
+while [ -z "$ID" ]; do
+   ID=$(sudo kata-runtime list -q)
+done
+
+LOG="/run/vc/vm/$ID/qemu.log"
+tail -n +0 -f $LOG
