@@ -8,7 +8,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	specs "github.com/opencontainers/runtime-spec/specs-go"
@@ -19,7 +18,7 @@ var log = logrus.New()
 
 const (
 	pciDeviceFile  = "/sys/bus/pci/devices"
-	vfioDeviceFile = "/sys/bus/pci/drivers/vfio-pci"
+	pciProbeFile   = "/sys/bus/pci/drivers_probe"
 
 	waitGranule = 100 * time.Millisecond
 	waitTimeout = 10 * time.Second
@@ -263,41 +262,41 @@ func rebindOne(bdf string) error {
 	log.Debugf("Attempting to rebind device %s to vfio", bdf)
 
 	driverPath := filepath.Join(pciDeviceFile, bdf, "driver")
-	if _, err := os.Stat(driverPath); err == nil {
-		driver, err := os.Readlink(driverPath)
+	driver, err := os.Readlink(driverPath)
+	if os.IsNotExist(err) {
+		// This just means the device isn't bound
+		driver, err = "", nil
+	}
+	if err != nil {
+		return fmt.Errorf("Failed to read %s: %s", driverPath, err)
+	}
+	log.Debugf("Device %s previously bound to '%s'", bdf, driver)
+
+	if string(driver) == "vfio-pci" {
+		log.Infof("Device %s is already bound to vfio", bdf)
+		return nil
+	}
+
+	overridePath := filepath.Join(pciDeviceFile, bdf, "driver_override")
+	err = ioutil.WriteFile(overridePath, []byte("vfio-pci"), 0200)
+	if err != nil {
+		return fmt.Errorf("Failed to override driver via %s", overridePath)
+	}
+
+	if driver != "" {
+		log.Debugf("Unbinding %s from driver (%s)", bdf, string(driver))
+		unbindPath := filepath.Join(pciDeviceFile, bdf, "driver/unbind")
+		err = ioutil.WriteFile(unbindPath, []byte(bdf), 0200)
 		if err != nil {
-			return fmt.Errorf("Failed to read %s: %s", driverPath, err)
-		}
-		if string(driver) == "vfio-pci" {
-			log.Infof("Device %s is already bound to vfio", bdf)
-			return nil
-		} else {
-			log.Infof("Unbinding %s from driver (%s)", bdf, string(driver))
-			unbindPath := filepath.Join(pciDeviceFile, bdf, "driver/unbind")
-			err = ioutil.WriteFile(unbindPath, []byte(bdf), 0200)
-			if err != nil {
-				return fmt.Errorf("Failed to unbind driver (%s): %s", string(driver), err)
-			}
+			return fmt.Errorf("Failed to unbind driver (%s): %s", string(driver), err)
 		}
 	}
 
-	vendorPath := filepath.Join(pciDeviceFile, bdf, "vendor")
-	devicePath := filepath.Join(pciDeviceFile, bdf, "device")
-	vendor, err := ioutil.ReadFile(vendorPath)
+	err = ioutil.WriteFile(pciProbeFile, []byte(bdf), 0200)
 	if err != nil {
-		return err
+		return fmt.Errorf("Failed to reprobe %s: %s", bdf, err)
 	}
-	device, err := ioutil.ReadFile(devicePath)
-	if err != nil {
-		return err
-	}
-	newid := fmt.Sprintf("%s %s", strings.TrimSuffix(string(vendor), "\n"), strings.TrimSuffix(string(device), "\n"))
+	log.Infof("Device %s rebound to vfio", bdf)
 
-	newidPath := filepath.Join(vfioDeviceFile, "new_id")
-	err = ioutil.WriteFile(newidPath, []byte(newid), 0200)
-	if err != nil {
-		return fmt.Errorf("Failed to write %s: %s", vfioDeviceFile, err)
-	}
-	log.Infof("Completed rebinding device %s to vfio", bdf)
 	return nil
 }
