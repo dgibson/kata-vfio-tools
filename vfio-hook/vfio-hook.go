@@ -37,6 +37,9 @@ var (
 const (
 	pciDeviceFile  = "/sys/bus/pci/devices"
 	vfioDeviceFile = "/sys/bus/pci/drivers/vfio-pci"
+
+	waitGranule = 100 * time.Millisecond
+	waitTimeout = 10 * time.Second
 )
 
 type GuestPciPath struct {
@@ -55,12 +58,13 @@ type vfioDevInfo struct {
 }
 type vfioGroupInfo struct {
 	HostGroup string                   `json:"host-group"`
-	Devices []vfioDevInfo                  `json:"devices"`
+	Devices []vfioDevInfo              `json:"devices"`
 }
 type vfioInfo []vfioGroupInfo
 
 func main() {
 	log.Out = os.Stderr
+	var err error
 
 	dname, err := ioutil.TempDir("", "vfiohooklog")
 	fname := filepath.Join(dname, "vfiohook.log")
@@ -101,14 +105,17 @@ func main() {
 		return
 	}
 
-	_, err = getVfioInfo(config)
+	info, err := getVfioInfo(config)
 	if err != nil {
 		log.Fatal(err)
 		return
 	}
 
-	// Wait for devices to be ready
-	time.Sleep(10 * time.Second)
+	err = waitForDevices(info)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
 
 	scanDevices()
 }
@@ -176,6 +183,79 @@ func getVfioInfo(config *specs.Spec) (*vfioInfo, error) {
 	}
 
 	return &info, nil
+}
+
+func waitForPciPath(pciPath GuestPciPath) (string, error) {
+	path := pciPath.Path
+	var bdf string
+	var err error
+
+	// XXX this is x86(pc/q35) specific for now
+	b := "0000:00"
+	sysPath := fmt.Sprintf("/sys/devices/pci%s", b)
+
+	if len(path) == 0 {
+		return "", fmt.Errorf("Empty guest PCI path")
+	}
+
+	for {
+		df := path[0]
+		path = path[1:]
+		bdf = fmt.Sprintf("%s:%s", b, df)
+		sysPath = filepath.Join(sysPath, bdf)
+		log.Debugf("Waiting for %s", sysPath)
+
+		then := time.Now()
+		for {
+			_, err = os.Stat(sysPath)
+			if err == nil {
+				break
+			}
+			if !os.IsNotExist(err) {
+				return "", err
+			}
+			if elapsed := time.Since(then); elapsed > waitTimeout {
+				return "", fmt.Errorf("Timeout waiting for %s (%v)", sysPath, elapsed)
+			}
+			time.Sleep(waitGranule)
+		}
+
+		log.Debugf("Found %s after %v", sysPath, time.Since(then))
+
+		if len(path) == 0 {
+			// We're there!
+			return bdf, nil
+		}
+
+		busDir := filepath.Join(sysPath, "pci_bus")
+		busList, err := ioutil.ReadDir(busDir)
+		if err != nil {
+			return "", err
+		}
+
+		if len(busList) != 1 {
+			return "", fmt.Errorf("Unexpected contents of %s", busDir)
+		}
+
+		b = busList[0].Name()
+	}
+}
+
+func waitForDevices(info *vfioInfo) error {
+	for _, group := range *info {
+		log.Debugf("waitForDevice: Host Group %s", group.HostGroup)
+
+		for _, dev := range group.Devices {
+			guestBDF, err := waitForPciPath(dev.GuestPath)
+			if err != nil {
+				return err
+			}
+			log.Infof("Host device %s is guest device %s",
+				dev.HostAddress, guestBDF)
+		}
+	}
+
+	return nil
 }
 
 func scanDevices() {
