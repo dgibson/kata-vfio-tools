@@ -58,49 +58,75 @@ func main() {
 	force := flag.Bool("f", false, "Force start the VFIO hook")
 	flag.Parse()
 
-	log.Info("Starting VFIO hook")
-	time.Sleep(10 * time.Second) //hack rescan()
-	if err := startVfioOciHook(*force); err != nil {
+	var cid string // Container ID
+
+	if !*force {
+		cid, err = parseState()
+	} else {
+		// Force option doesn't get state, since it's run
+		// without stdin wired up to the agent, so we have to
+		// look elsewhere for the container ID
+		cid, err = guessID()
+	}
+	if err != nil {
 		log.Fatal(err)
 		return
 	}
-}
 
-func startVfioOciHook(force bool) error {
-	//Hook receives container State in Stdin
-	//https://github.com/opencontainers/runtime-spec/blob/master/config.md#posix-platform-hooks
-	//https://github.com/opencontainers/runtime-spec/blob/master/runtime.md#state
+	log.Infof("VFIO hook, container %s", cid)
 
-	if !force {
-		//Force option will not be getting container spec since it's run standalone
-		var s specs.State
-		reader := bufio.NewReader(os.Stdin)
-		decoder := json.NewDecoder(reader)
-		err := decoder.Decode(&s)
-		if err != nil {
-			return err
-		}
-
-		//log specs State to file
-		log.Debugf("Container state: %v", s)
-
-		//For Kata the config.json is in a different path
-		configJsonPath := filepath.Join("/run/libcontainer", s.ID, "config.json")
-
-		log.Debugf("Reading config.json from:: %s", configJsonPath)
-		//Read the JSON
-		jsonData, err := ioutil.ReadFile(configJsonPath)
-		if err != nil {
-			log.Errorf("Failed to read config.json: %s", err)
-			return err
-		}
-
-		log.Debugf("Config.json contents: %s", jsonData)
+	_, err = loadConfig(cid)
+	if err != nil {
+		log.Fatal(err)
+		return
 	}
 
-	scanDevices()
+	// Wait for devices to be ready
+	time.Sleep(10 * time.Second)
 
-	return nil
+	scanDevices()
+}
+
+func parseState() (string, error) {
+	var s specs.State
+
+	reader := bufio.NewReader(os.Stdin)
+	decoder := json.NewDecoder(reader)
+	err := decoder.Decode(&s)
+	if err != nil {
+		return "", err
+	}
+
+	log.Debugf("Container state: %v", s)
+	return s.ID, nil
+}
+
+func guessID() (string, error) {
+	cList, err := ioutil.ReadDir("/run/libcontainer")
+	if err != nil {
+		return "", err
+	}
+
+	if len(cList) != 1 {
+		return "", fmt.Errorf("Couldn't identify container ID")
+	}
+
+	return cList[0].Name(), nil
+}
+
+func loadConfig(cid string) ([]byte, error) {
+	//For Kata the config.json isn't in the bundle path
+	configJsonPath := filepath.Join("/run/libcontainer", cid, "config.json")
+
+	log.Debugf("Reading config.json from:: %s", configJsonPath)
+
+	jsonData, err := ioutil.ReadFile(configJsonPath)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to read config.json: %s", err)
+	}
+
+	log.Debugf("Config.json contents: %s", jsonData)
+	return jsonData, nil
 }
 
 func scanDevices() {
