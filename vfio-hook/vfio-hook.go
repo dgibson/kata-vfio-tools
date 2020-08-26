@@ -39,6 +39,26 @@ const (
 	vfioDeviceFile = "/sys/bus/pci/drivers/vfio-pci"
 )
 
+type GuestPciPath struct {
+	// XXX If we want to support machine types with multiple PCI
+	// roots, we'll need to add a machine specific way of
+	// describing the correct root here
+
+	// A list of slot/function pairs for each bridge leading to
+	// the device, then finally for the device itself
+	Path []string
+}
+
+type vfioDevInfo struct {
+	HostAddress string                `json:"host-address"`
+	GuestPath GuestPciPath            `json:"guest-path"`
+}
+type vfioGroupInfo struct {
+	HostGroup string                   `json:"host-group"`
+	Devices []vfioDevInfo                  `json:"devices"`
+}
+type vfioInfo []vfioGroupInfo
+
 func main() {
 	log.Out = os.Stderr
 
@@ -75,7 +95,13 @@ func main() {
 
 	log.Infof("VFIO hook, container %s", cid)
 
-	_, err = loadConfig(cid)
+	config, err := loadConfig(cid)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	_, err = getVfioInfo(config)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -114,19 +140,42 @@ func guessID() (string, error) {
 	return cList[0].Name(), nil
 }
 
-func loadConfig(cid string) ([]byte, error) {
+func loadConfig(cid string) (*specs.Spec, error) {
 	//For Kata the config.json isn't in the bundle path
 	configJsonPath := filepath.Join("/run/libcontainer", cid, "config.json")
 
 	log.Debugf("Reading config.json from:: %s", configJsonPath)
 
-	jsonData, err := ioutil.ReadFile(configJsonPath)
+	configFile, err := os.OpenFile(configJsonPath, os.O_RDONLY, 0)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to read config.json: %s", err)
+		return nil, err
 	}
 
-	log.Debugf("Config.json contents: %s", jsonData)
-	return jsonData, nil
+	reader := bufio.NewReader(configFile)
+	decoder := json.NewDecoder(reader)
+
+	var config specs.Spec
+
+	err = decoder.Decode(&config)
+	if err != nil {
+		return nil, err
+	}
+
+	return &config, nil
+}
+
+func getVfioInfo(config *specs.Spec) (*vfioInfo, error) {
+	annotation := config.Annotations["io.katacontainers.x.vfio"]
+	log.Debugf("VFIO device annotation: %s", annotation)
+
+	var info vfioInfo
+
+	err := json.Unmarshal([]byte(annotation), &info)
+	if err != nil {
+		return nil, err
+	}
+
+	return &info, nil
 }
 
 func scanDevices() {
