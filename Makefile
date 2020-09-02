@@ -17,7 +17,7 @@ endif
 GO = go
 KATA_UPSTREAM = https://github.com/kata-containers
 VFIO_REPO = https://github.com/dgibson
-VFIO_REF = vfio-alpha9
+VFIO_REF = vfio
 
 export GOPATH = $(BUILD)/go
 KATASRC = $(GOPATH)/src/github.com/kata-containers
