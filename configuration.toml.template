@@ -284,7 +284,7 @@ pcie_root_port = 3
 # https://github.com/opencontainers/runtime-spec/blob/v1.0.1/config.md#posix-platform-hooks
 # Warnings will be logged if any error is encountered will scanning for hooks,
 # but it will not abort container execution.
-guest_hook_path = "/usr/share/oci/hooks"
+# guest_hook_path = "/usr/share/oci/hooks"
 
 [factory]
 # VM templating support. Once enabled, new VMs are created from template

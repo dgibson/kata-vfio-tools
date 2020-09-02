@@ -6,7 +6,6 @@ INITRD = $(KATAPREFIX)/var/cache/kata-containers/kata-containers-initrd.img
 OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
 AGENT_TREE = $(BUILD)/agent
 AGENT_BIN = $(AGENT_TREE)/usr/bin/kata-agent
-HOOK_BIN = $(AGENT_TREE)/usr/share/oci/hooks/prestart/vfio-hook
 OSBUILDER = $(KATASRC)/osbuilder
 DRACUTDIR = $(OSBUILDER)/dracut/dracut.conf.d
 
@@ -18,6 +17,7 @@ endif
 GO = go
 KATA_UPSTREAM = https://github.com/kata-containers
 VFIO_REPO = https://github.com/dgibson
+VFIO_REF = vfio-alpha1
 
 export GOPATH = $(BUILD)/go
 KATASRC = $(GOPATH)/src/github.com/kata-containers
@@ -48,7 +48,7 @@ agent: $(KATASRC)/agent
 
 initrd: $(INITRD)
 
-$(INITRD): $(OSBUILDER_SCRIPT) $(AGENT_BIN) $(HOOK_BIN) $(OSBUILDER_DRACUTFILES)
+$(INITRD): $(OSBUILDER_SCRIPT) $(AGENT_BIN) $(OSBUILDER_DRACUTFILES)
 	$<
 
 $(DRACUTDIR)/%: dracut/% $(OSBUILDER)
@@ -56,9 +56,6 @@ $(DRACUTDIR)/%: dracut/% $(OSBUILDER)
 
 $(AGENT_BIN): agent
 	make -C $(KATASRC)/agent DESTDIR=$(AGENT_TREE) install
-
-$(HOOK_BIN): vfio-hook/vfio-hook.go
-	cd vfio-hook && $(GO) build -o $@ -v .
 
 $(OSBUILDER_SCRIPT): vfio-kata-osbuilder.sh.template
 	sed 's!%KATAPREFIX%!$(KATAPREFIX)!;s!%AGENT_TREE%!$(AGENT_TREE)!;s!%OSBUILDER%!$(OSBUILDER)!' < $< > $@
@@ -70,7 +67,7 @@ $(UPSTREAM_SOURCES): %:
 
 $(VFIO_SOURCES): %:
 	mkdir -p $(KATASRC)
-	cd $(KATASRC) && git clone -b vfio $(VFIO_REPO)/kata-$(notdir $*) $(notdir $*)
+	cd $(KATASRC) && git clone -b $(VFIO_REF) $(VFIO_REPO)/kata-$(notdir $*) $(notdir $*)
 
 clean:
 	chmod -R u+w $(BUILD)
