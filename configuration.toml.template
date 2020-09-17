@@ -244,7 +244,7 @@ enable_debug = true
 # a large PCI bar, as this is a current limitation with hotplugging on 
 # a bridge. This value is valid for "pc" machine type.
 # Default false
-#hotplug_vfio_on_root_bus = true
+hotplug_vfio_on_root_bus = true
 
 # Before hot plugging a PCIe device, you need to add a pcie_root_port device.
 # Use this parameter when using some large PCI bar devices, such as Nvidia GPU
@@ -469,3 +469,24 @@ sandbox_cgroup_only=true
 # Supported experimental features:
 # (default: [])
 experimental=[]
+
+# If enabled, containers are allowed to join the pid namespace of the agent
+# when the env variable KATA_AGENT_PIDNS is set for a container.
+# Use this with caution and only when required, as this option allows the container
+# to access the agent process. It is recommended to enable this option
+# only in debug scenarios and with containers with lowered priveleges.
+#enable_agent_pidns = true
+
+# Use VFIO driver for VFIO devices in the VM, as well as the host.
+#
+# When enabled, VFIO devices passed to the container appear as VFIO
+# devices within the container, similar behaviour to a conventional
+# container.  NOTE: The VFIO device within the container will have a
+# different name from the device on the host, since the VM has its own
+# IOMMU/VFIO group numbering.
+#
+# When disabled, the VM will use its native drivers for the VFIO
+# device.This behaviour is inherently Kata specific, and will require
+# a container image which expects it.
+# (default: false)
+vfio_in_guest = true

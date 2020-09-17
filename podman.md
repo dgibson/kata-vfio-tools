@@ -59,9 +59,13 @@ However, if you want to try this with your own `confugration.toml` you
 will need to add these settings:
 
 ```
+[hypervisor.qemu]
 machine_type = "q35"
 kernel_params = "systemd.unified_cgroup_hierarchy=0`
 enable_iommu = true
+
+[runtime]
+vfio_in_guest = true
 ```
 
 In addition, if you want to run DPDK in the container, you will need
