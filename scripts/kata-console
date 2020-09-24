@@ -6,4 +6,9 @@ if [ -z "$ID" ]; then
 fi
 
 CONSOLE="/run/vc/vm/$ID/console.sock"
+
+if [ -z "$ID" ]; then
+    CONSOLE=$(find /run/vc/vm -name "console.sock")
+fi
+
 sudo socat stdin,raw,echo=0,escape=0x11 unix-connect:"${CONSOLE}"
