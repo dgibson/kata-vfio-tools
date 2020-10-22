@@ -1,7 +1,7 @@
 BUILD = $(CURDIR)/build
 KATAPREFIX = $(BUILD)/prefix
 KATACONFIG = $(KATAPREFIX)/etc/kata-containers/configuration.toml
-PODMAN_CONF = /usr/share/containers/containers.conf
+PODMAN_CONF = /etc/containers/containers.conf
 INITRD = $(KATAPREFIX)/var/cache/kata-containers/kata-containers-initrd.img
 OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
 AGENT_TREE = $(BUILD)/agent
