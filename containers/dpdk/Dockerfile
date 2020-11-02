@@ -10,6 +10,9 @@ RUN dnf $DNFFLAGS -y makecache
 # DPDK tools
 RUN dnf $DNFFLAGS -y install dpdk-tools
 
+# Firmware, needed for some devices
+RUN dnf $DNFFLAGS -y install linux-firmware
+
 # Install debugging utils
 RUN dnf $DNFFLAGS -y install strace procps pciutils
 
