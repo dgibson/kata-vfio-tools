@@ -33,7 +33,7 @@ write_files:
       cd $KATASRC
       git clone https://github.com/kata-containers/tests
 
-      grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=0"
+      grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=0 intel_iommu=on"
 
       poweroff
 

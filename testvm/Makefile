@@ -4,6 +4,7 @@ KEYFILE = ~/.ssh/id_ed25519.pub
 NAME = kata-vfio-test-vm
 MEMORY = 8192
 SSH_PORT = 11022
+SOCKNET_PORT = 11099
 
 CLOUD_ISO = cloud-init.iso
 DISK = disk.qcow2
@@ -15,11 +16,16 @@ SSH = ssh
 SSH_KEYGEN = ssh-keygen
 
 QEMU_CMD = $(QEMU) -name $(NAME) \
+		-machine q35,kernel_irqchip=split \
 		-m $(MEMORY) \
+		-cpu host \
 		-smp 2 \
 		-hda $(DISK) \
 		-netdev user,id=net0,hostfwd=tcp:127.0.0.1:$(SSH_PORT)-:22 \
 		-device virtio-net-pci,netdev=net0 \
+		-netdev socket,id=net1,listen=:$(SOCKNET_PORT) \
+		-device virtio-net-pci,netdev=net1 \
+		-device intel-iommu \
 		-nographic
 
 KEY = $(shell cat $(KEYFILE))
