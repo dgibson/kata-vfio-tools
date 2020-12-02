@@ -1,0 +1,44 @@
+#cloud-config
+system_info:
+  default_user:
+    name: root
+
+resize_rootfs: True
+timezone: @TZ@
+disable_root: False
+
+ssh_authorized_keys:
+  - @KEY@
+
+packages:
+  - git
+
+write_files:
+  - path: /root/.bashrc
+    append: true
+    content: |
+      export GOPATH=~/go
+      export PATH=$PATH:$GOPATH/bin:/usr/local/go/bin
+  - path: /root/kata-tests-setup.sh
+    permissions: '0755'
+    content: |
+      #! /bin/sh
+      set -e
+      export HOME=/root
+      export GOPATH=~/go
+      export PATH=$PATH:$GOPATH/bin
+      KATASRC=$GOPATH/src/github.com/kata-containers
+
+      mkdir -p $KATASRC
+      cd $KATASRC
+      git clone https://github.com/kata-containers/tests
+
+      grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=0"
+
+      poweroff
+
+runcmd:
+  - [ sh, -c, echo "runcmd setup" ]
+  - [ /root/kata-tests-setup.sh ]
+
+final_message: "READY!"
