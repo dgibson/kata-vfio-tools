@@ -24,16 +24,17 @@ write_files:
     content: |
       #! /bin/sh
       set -e
+      export USER=root
       export HOME=/root
       export GOPATH=~/go
-      export PATH=$PATH:$GOPATH/bin
+      export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
       KATASRC=$GOPATH/src/github.com/kata-containers
 
       mkdir -p $KATASRC
       cd $KATASRC
       git clone https://github.com/kata-containers/tests
 
-      grubby --update-kernel=ALL --args="systemd.unified_cgroup_hierarchy=0 intel_iommu=on"
+      (cd tests && .ci/setup.sh)
 
       poweroff
 
