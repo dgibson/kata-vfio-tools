@@ -29,13 +29,27 @@ write_files:
       export GOPATH=~/go
       export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
       KATASRC=$GOPATH/src/github.com/kata-containers
-
       mkdir -p $KATASRC
       cd $KATASRC
+      git clone https://github.com/kata-containers/runtime
+      (
+          cd runtime
+          git remote add dwg-github https://github.com/dgibson/kata-runtime
+          git fetch dwg-github
+          git checkout -b test dwg-github/bug2664
+      )
+      git clone https://github.com/kata-containers/agent
+      (
+          cd agent
+          git remote add dwg-github https://github.com/dgibson/kata-agent
+          git fetch dwg-github
+          git checkout -b test dwg-github/bug781
+      )
       git clone https://github.com/kata-containers/tests
-
-      (cd tests && .ci/setup.sh)
-
+      (
+          cd tests
+          .ci/setup.sh
+      )
       poweroff
 
 runcmd:
