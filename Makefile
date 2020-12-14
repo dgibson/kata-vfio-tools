@@ -17,7 +17,7 @@ endif
 GO = go
 KATA_UPSTREAM = https://github.com/kata-containers
 VFIO_REPO = https://github.com/dgibson
-VFIO_REF = vfio-alpha8
+VFIO_REF = vfio-alpha9
 
 export GOPATH = $(BUILD)/go
 KATASRC = $(GOPATH)/src/github.com/kata-containers
@@ -70,7 +70,7 @@ $(VFIO_SOURCES): %:
 	cd $(KATASRC) && git clone -b $(VFIO_REF) $(VFIO_REPO)/kata-$(notdir $*) $(notdir $*)
 
 clean:
-	chmod -R u+w $(BUILD)
+	chmod -R u+w $(BUILD) || true
 	rm -rf $(BUILD)
 	rm -f *~
 
