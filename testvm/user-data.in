@@ -12,6 +12,7 @@ ssh_authorized_keys:
 
 packages:
   - git
+  - strace
 
 write_files:
   - path: /root/.bashrc
@@ -36,7 +37,7 @@ write_files:
           cd runtime
           git remote add dwg-github https://github.com/dgibson/kata-runtime
           git fetch dwg-github
-          git checkout -b test dwg-github/bug2664
+          git checkout -b test dwg-github/debug
       )
       git clone https://github.com/kata-containers/agent
       (
@@ -50,6 +51,7 @@ write_files:
           cd tests
           .ci/setup.sh
       )
+      systemctl enable docker
       poweroff
 
 runcmd:
