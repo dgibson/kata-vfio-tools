@@ -1,61 +1,19 @@
 #cloud-config
-system_info:
-  default_user:
-    name: root
+
+users:
+  - name: kata
+    groups: users
+    lock_passwd: true
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    ssh-authorized-keys:
+      - @KEY@
 
 resize_rootfs: True
 timezone: @TZ@
-disable_root: False
 
-ssh_authorized_keys:
-  - @KEY@
-
-packages:
-  - git
-  - strace
-
-write_files:
-  - path: /root/.bashrc
-    append: true
-    content: |
-      export GOPATH=~/go
-      export PATH=$PATH:$GOPATH/bin:/usr/local/go/bin
-  - path: /root/kata-tests-setup.sh
-    permissions: '0755'
-    content: |
-      #! /bin/sh
-      set -e
-      export USER=root
-      export HOME=/root
-      export GOPATH=~/go
-      export PATH=$PATH:/usr/local/go/bin:$GOPATH/bin
-      KATASRC=$GOPATH/src/github.com/kata-containers
-      mkdir -p $KATASRC
-      cd $KATASRC
-      git clone https://github.com/kata-containers/runtime
-      (
-          cd runtime
-          git remote add dwg-github https://github.com/dgibson/kata-runtime
-          git fetch dwg-github
-          git checkout -b test dwg-github/debug
-      )
-      git clone https://github.com/kata-containers/agent
-      (
-          cd agent
-          git remote add dwg-github https://github.com/dgibson/kata-agent
-          git fetch dwg-github
-          git checkout -b test dwg-github/bug781
-      )
-      git clone https://github.com/kata-containers/tests
-      (
-          cd tests
-          .ci/setup.sh
-      )
-      systemctl enable docker
-      poweroff
-
-runcmd:
-  - [ sh, -c, echo "runcmd setup" ]
-  - [ /root/kata-tests-setup.sh ]
-
-final_message: "READY!"
+power_state:
+  delay: now
+  mode: poweroff
+  message: DONE!
+  timeout: 30
+  condition: True

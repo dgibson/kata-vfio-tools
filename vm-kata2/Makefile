@@ -1,66 +1,59 @@
-BASEIMG = ~/mirror/Fedora-Cloud-Base-33-1.2.x86_64.qcow2
+BASEIMG = ~/mirror/bionic-server-cloudimg-amd64.img
 TZ = Australia/Sydney
 KEYFILE = ~/.ssh/id_ed25519.pub
-NAME = kata-vfio-test-vm
-MEMORY = 8192
-SSH_PORT = 11022
-SOCKNET_PORT = 11099
-KTAG = 5.8.15-301.fc33.x86_64
+export VMNAME = kata2-test
+export MEMORY = 8192
+export SSH_PORT = 11023
+KTAG = 4.15.0-132-generic
 
-KERNEL = vmlinuz-$(KTAG)
-INITRAMFS = initramfs-$(KTAG).img
+export KERNEL = vmlinuz-$(KTAG)
+export INITRAMFS = initrd.img-$(KTAG)
 CLOUD_ISO = cloud-init.iso
-DISK = disk.qcow2
 
 GENISOIMAGE = genisoimage
 QEMU_IMG = qemu-img
-QEMU = qemu-kvm
+export QEMU = qemu-kvm
 SSH = ssh
 SSH_KEYGEN = ssh-keygen
 VIRT_COPY_OUT = virt-copy-out
 
-QEMU_CMD = $(QEMU) -name $(NAME) \
+VMSCRIPT = ./vmscript.sh
+QEMU_CMD = $(QEMU) -name $(VMNAME) \
 		-machine q35,kernel_irqchip=split \
 		-m $(MEMORY) \
 		-cpu host \
 		-smp 2 \
 		-kernel $(KERNEL) \
 		-initrd $(INITRAMFS) \
-		-append "console=ttyS0,115200n8 systemd.unified_cgroup_hierarchy=0 intel_iommu=on root=/dev/sda1" \
-		-hda $(DISK) \
+		-append "console=ttyS0,115200n8 systemd.unified_cgroup_hierarchy=0 root=/dev/sda1" \
 		-netdev user,id=net0,hostfwd=tcp:127.0.0.1:$(SSH_PORT)-:22 \
 		-device virtio-net-pci,netdev=net0 \
-		-netdev socket,id=net1,listen=:$(SOCKNET_PORT) \
-		-device virtio-net-pci,netdev=net1 \
-		-device intel-iommu \
 		-vga none \
-		-nographic
+		-nographic \
+		-hda
+
+REMOVE_HOST_KEY = $(SSH_KEYGEN) -R '[localhost]:$(SSH_PORT)' || true
 
 KEY = $(shell cat $(KEYFILE))
 
-all: run
+all: ci-setup.qcow2
 
-user-data: user-data.in Makefile
-	sed 's!@TZ@!$(TZ)!;s!@KEY@!$(KEY)!' < $< > $@
+run: ci-setup.qcow2 $(KERNEL) $(INITRAMFS)
+	$(QEMU_CMD) $<
 
-$(CLOUD_ISO): meta-data user-data
-	$(GENISOIMAGE) -output $@ -input-charset utf8 -volid cidata -joliet -rock $^
 
-disk: $(DISK)
-
-$(DISK): $(BASEIMG) $(CLOUD_ISO) extract remove-host-key
-	$(SSH_KEYGEN) -R '[localhost]:$(SSH_PORT)' || true
+distro.qcow2: $(BASEIMG) $(CLOUD_ISO) $(KERNEL) $(INITRAMFS)
+	$(REMOVE_HOST_KEY)
 	$(QEMU_IMG) create -f qcow2 -F qcow2 -b $< $@ 20G
-	$(QEMU_CMD) -cdrom $(CLOUD_ISO)
+	$(QEMU_CMD) $@ -cdrom $(CLOUD_ISO)
 
-run: $(DISK) extract
-	$(QEMU_CMD)
+code.qcow2: distro.qcow2 $(KERNEL) $(INITRAMFS) $(VMSCRIPT) code.sh
+	$(QEMU_IMG) create -f qcow2 -F qcow2 -b $< $@
+	$(VMSCRIPT) $@ code.sh
 
-ssh:
-	$(SSH) -o StrictHostKeyChecking=accept-new root@localhost -p $(SSH_PORT) 
-
-remove-host-key:
-	$(SSH_KEYGEN) -R '[localhost]:$(SSH_PORT)' || true
+ci-setup.qcow2: code.qcow2 $(KERNEL) $(INITRAMFS) $(VMSCRIPT) ci-setup.sh
+	$(QEMU_IMG) create -f qcow2 -F qcow2 -b $< $@
+	$(VMSCRIPT) $@ ci-setup.sh
 
 $(KERNEL): $(BASEIMG)
 	$(VIRT_COPY_OUT) -a $< /boot/$(KERNEL) .
@@ -68,9 +61,23 @@ $(KERNEL): $(BASEIMG)
 $(INITRAMFS): $(BASEIMG)
 	$(VIRT_COPY_OUT) -a $< /boot/$(INITRAMFS) .
 
-extract: $(KERNEL) $(INITRAMFS)
+user-data: user-data.in Makefile
+	sed 's!@TZ@!$(TZ)!;s!@KEY@!$(KEY)!' < $< > $@
 
-clean: remove-host-key
+$(CLOUD_ISO): meta-data user-data
+	$(GENISOIMAGE) -output $@ -input-charset utf8 -volid cidata -joliet -rock $^
+
+
+ssh:
+	$(SSH) -o StrictHostKeyChecking=accept-new kata@localhost -p $(SSH_PORT) 
+
+
+remove-host-key:
+	$(SSH_KEYGEN) -R '[localhost]:$(SSH_PORT)' || true
+
+clean:
+	$(REMOVE_HOST_KEY)
 	rm -f *~
-	rm -f user-data $(CLOUD_ISO) $(DISK)
+	rm -f *.qcow2
+	rm -f user-data $(CLOUD_ISO)
 	rm -f $(KERNEL) $(INITRAMFS)

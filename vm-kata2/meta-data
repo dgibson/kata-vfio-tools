@@ -1,2 +1,2 @@
-instance-id: kata-vfio-test-vm
-local-hostname: kata-vfio-test-vm
+instance-id: kata2-vfio-test-vm
+local-hostname: kata2-vfio-test-vm
