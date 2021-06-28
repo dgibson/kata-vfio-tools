@@ -1,0 +1,14 @@
+{
+  "metadata": {
+      "name": "busybox"
+  },
+  "image": {
+      "image": "docker.io/i386/busybox"
+  },
+  "command": [
+      "sleep", "3600"
+  ],
+  "log_path":"busybox.log",
+  "linux": {
+  }
+}
