@@ -1,0 +1,11 @@
+{
+  "metadata": {
+      "name": "busybox"
+  },
+  "image": {
+      "image": "vfio-true"
+  },
+  "log_path":"vfio-true.log",
+  "linux": {
+  }
+}
