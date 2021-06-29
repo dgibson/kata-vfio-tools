@@ -20,11 +20,10 @@ go get github.com/kata-containers/kata-containers || true
     cd $KATASRC/kata-containers
     git remote add dwg-github https://github.com/dgibson/kata-containers
     git fetch dwg-github
-    git checkout -b test dwg-github/pcipath
+    git checkout -b test dwg-github/generalize-watcher
 )
 go get github.com/kata-containers/tests || true
 (
     cd $KATASRC/tests
-    git checkout -b test origin/2.0-dev
-    #CRIO="no" CRI_CONTAINERD="yes" OPENSHIFT="no" .ci/setup.sh
+    git checkout -b test origin/main
 )

@@ -2,7 +2,7 @@ BASEIMG = ~/mirror/bionic-server-cloudimg-amd64.img
 TZ = Australia/Sydney
 KEYFILE = ~/.ssh/id_ed25519.pub
 export VMNAME = kata2-test
-export MEMORY = 8192
+export MEMORY = 4096
 export SSH_PORT = 11023
 KTAG = 4.15.0-132-generic
 
@@ -22,7 +22,7 @@ QEMU_CMD = $(QEMU) -name $(VMNAME) \
 		-machine q35,kernel_irqchip=split \
 		-m $(MEMORY) \
 		-cpu host \
-		-smp 2 \
+		-smp 4 \
 		-kernel $(KERNEL) \
 		-initrd $(INITRAMFS) \
 		-append "console=ttyS0,115200n8 systemd.unified_cgroup_hierarchy=0 root=/dev/sda1" \
@@ -36,9 +36,9 @@ REMOVE_HOST_KEY = $(SSH_KEYGEN) -R '[localhost]:$(SSH_PORT)' || true
 
 KEY = $(shell cat $(KEYFILE))
 
-all: ci-setup.qcow2
+all: ready.qcow2
 
-run: ci-setup.qcow2 $(KERNEL) $(INITRAMFS)
+run: ready.qcow2 $(KERNEL) $(INITRAMFS)
 	$(QEMU_CMD) $<
 
 
@@ -55,13 +55,16 @@ ci-setup.qcow2: code.qcow2 $(KERNEL) $(INITRAMFS) $(VMSCRIPT) ci-setup.sh
 	$(QEMU_IMG) create -f qcow2 -F qcow2 -b $< $@
 	$(VMSCRIPT) $@ ci-setup.sh
 
+ready.qcow2: ci-setup.qcow2 $(KERNEL) $(INITRAMFS)
+	$(QEMU_IMG) create -f qcow2 -F qcow2 -b $< $@
+
 $(KERNEL): $(BASEIMG)
 	$(VIRT_COPY_OUT) -a $< /boot/$(KERNEL) .
 
 $(INITRAMFS): $(BASEIMG)
 	$(VIRT_COPY_OUT) -a $< /boot/$(INITRAMFS) .
 
-user-data: user-data.in Makefile
+user-data: user-data.in
 	sed 's!@TZ@!$(TZ)!;s!@KEY@!$(KEY)!' < $< > $@
 
 $(CLOUD_ISO): meta-data user-data
