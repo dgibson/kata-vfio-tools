@@ -9,3 +9,6 @@ $(CONTAINERS): %: %/Dockerfile
 
 clean:
 	rm -f *~
+
+cleaner: clean
+	podman rmi $(CONTAINERS:%=vfio-%)
