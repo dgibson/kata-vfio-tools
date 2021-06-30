@@ -257,7 +257,7 @@ pflashes = []
 # to enable debug output where available.
 #
 # Default false
-#enable_debug = true
+enable_debug = true
 
 # Disable the customizations done in the runtime when it detects
 # that it is running on top a VMM. This will result in the runtime
@@ -402,7 +402,7 @@ valid_entropy_sources = ["/dev/urandom","/dev/random",""]
 [agent.kata]
 # If enabled, make the agent display debug-level messages.
 # (default: disabled)
-#enable_debug = true
+enable_debug = true
 
 # Enable agent tracing.
 #
@@ -443,7 +443,7 @@ kernel_modules=[]
 # If enabled, user can connect guest OS running inside hypervisor
 # through "kata-runtime exec <sandbox-id>" command
 
-#debug_console_enabled = true
+debug_console_enabled = true
 
 # Agent connection dialing timeout value in seconds
 # (default: 30)
@@ -468,7 +468,7 @@ path = "/home/dwg/src/kata-vfio-tools/build/prefix/libexec/kata-containers/kata-
 # If enabled, the runtime will log additional debug messages to the
 # system log
 # (default: disabled)
-#enable_debug = true
+enable_debug = true
 #
 # Internetworking model
 # Determines how the VM should be connected to the
