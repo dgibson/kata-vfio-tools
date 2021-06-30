@@ -4,11 +4,16 @@ KATASRC = ~/src/kata-containers
 KATAPREFIX = $(BUILD)/prefix
 KATACONFIG = $(BUILD)/configuration.toml
 
+KERNEL = $(BUILD)/kata-vmlinuz
+INITRD = $(BUILD)/kata-initrd.img
+
 CRIO_CONF = /etc/crio/crio.conf
-INITRD = $(KATAPREFIX)/var/cache/kata-containers/kata-containers-initrd.img
+
+AGENT_BIN = $(KATASRC)/src/agent/target/x86_64-unknown-linux-gnu/release/kata-agent
+MBUTO = $(CURDIR)/mbuto
+
 OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
 AGENT_TREE = $(BUILD)/agent
-AGENT_BIN = $(AGENT_TREE)/usr/bin/kata-agent
 OSBUILDER = $(KATASRC)/osbuilder
 DRACUTDIR = $(OSBUILDER)/dracut/dracut.conf.d
 
@@ -17,20 +22,9 @@ ifneq ($(wildcard $(QEMU)),$(QEMU))
 QEMU := /usr/bin/qemu-system-x86_64
 endif
 
-GO = go
-KATA_UPSTREAM = https://github.com/kata-containers
-VFIO_REPO = https://github.com/dgibson
-VFIO_REF = vfio
-
 export GOPATH = $(BUILD)/go
-DRACUTFILES = 15-dracut-fedora.conf 99-vfio.conf
-OSBUILDER_DRACUTFILES = $(DRACUTFILES:%=$(DRACUTDIR)/%)
 
-UPSTREAM_SOURCES = $(KATASRC)/proxy $(KATASRC)/shim \
-	$(KATASRC)/osbuilder
-VFIO_SOURCES = $(KATASRC)/agent $(KATASRC)/runtime
-
-all: runtime #$(INITRD)
+all: runtime $(INITRD)
 
 runtime: runtime-install $(KATACONFIG)
 
@@ -44,31 +38,15 @@ $(KATACONFIG): configuration.toml.template Makefile
 	mkdir -p $(dir $@)
 	sed 's!%BUILD%!$(BUILD)!;s!%QEMU%!$(QEMU)!' < $< > $@
 
-agent: $(KATASRC)/agent
-	make -C $<
+agent: $(AGENT_BIN)
+
+$(AGENT_BIN): FORCE
+	make -C $(KATASRC)/src/agent LIBC=gnu
 
 initrd: $(INITRD)
 
-$(INITRD): $(OSBUILDER_SCRIPT) $(AGENT_BIN) $(OSBUILDER_DRACUTFILES)
-	$<
-
-$(DRACUTDIR)/%: dracut/% $(OSBUILDER)
-	cp $< $@
-
-$(AGENT_BIN): agent
-	make -C $(KATASRC)/agent DESTDIR=$(AGENT_TREE) install
-
-$(OSBUILDER_SCRIPT): vfio-kata-osbuilder.sh.template
-	sed 's!%KATAPREFIX%!$(KATAPREFIX)!;s!%AGENT_TREE%!$(AGENT_TREE)!;s!%OSBUILDER%!$(OSBUILDER)!' < $< > $@
-	chmod +x $@
-
-$(UPSTREAM_SOURCES): %:
-	mkdir -p $(KATASRC)
-	cd $(KATASRC) && git clone $(KATA_UPSTREAM)/$(notdir $*)
-
-$(VFIO_SOURCES): %:
-	mkdir -p $(KATASRC)
-	cd $(KATASRC) && git clone -b $(VFIO_REF) $(VFIO_REPO)/kata-$(notdir $*) $(notdir $*)
+$(INITRD): $(MBUTO) $(AGENT_BIN)
+	$< -c gzip -f $@
 
 clean:
 	chmod -R u+w $(BUILD) || true
@@ -77,3 +55,7 @@ clean:
 
 crio-conf-kata-vfio: kata-vfio-crio.conf.template
 	sed 's!%KATASHIMV2%!$(KATAPREFIX)/bin/containerd-shim-kata-v2!' < $< >> $(CRIO_CONF)
+
+.PHONY: FORCE
+
+FORCE:

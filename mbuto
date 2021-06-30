@@ -1,0 +1,879 @@
+#!/bin/sh -ef
+#
+# mbuto: Minimal Builder Using Terse Options
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+#
+# Author: Stefano Brivio <sbrivio@redhat.com>
+#
+# This script builds Linux initramfs images suitable for lightweight VM
+# environments (Kata Containers in particular), without relying on
+# distribution-specific tools (dracut, debootstrap, mkinitramfs, etc.) or
+# containerised environments.
+#
+# Programs are sourced from the host, together with required dynamic libraries.
+# Kernel modules, links, and initial device nodes are configured manually. A
+# convenience support for distribution packages is supplied, with the sole
+# function of extracting packages, ignoring dependencies, without an actual
+# installation process.
+#
+# shellcheck disable=SC2016,SC2046,SC2048,SC2059,SC2086,SC2154
+# 		     ^ FIXUP template, word splitting helpers, printf wrappers,
+#		       arguments to du -c, cmd_check assigning via eval
+
+### Configuration ##############################################################
+
+# Programs sourced together with linked libraries, alternatives with commas
+PROGS="${PROGS:-kata-agent ash,dash,bash ip mount ls modprobe insmod mkdir
+	 nsenter ln}"
+
+# Links: installed target program, then link name, one per line
+LINKS="${LINKS:-
+	kata-agent		/init
+	ash,dash,bash		/bin/sh
+}"
+
+# List of kernel modules
+KMODS="${KMODS:-vmw_vsock_virtio_transport virtio_net virtiofs vfio virtio_pci}"
+
+# Device nodes, one per line, NAME TYPE MAJOR MINOR supported, copied otherwise
+NODES="${NODES:-
+	console
+	kmsg
+	null
+	ptmx
+	random
+	urandom
+	zero
+}"
+
+# Empty directories to create
+DIRS="${DIRS:-/proc /sys}"
+
+# Copies of full paths, attributes and parents directories preserved
+COPIES="${COPIES:-}"
+
+# Fix-up script to run before /init, can be omitted
+FIXUP='#!/bin/sh
+
+export PATH=${PATH}:/bin:/usr/bin:/sbin:/usr/sbin
+
+mount -t proc - /proc
+mount -t sysfs - /sys
+
+for m in '${KMODS}'; do
+	modprobe ${m}
+done
+mount -t devtmpfs - /dev
+
+mkdir /dev/pts
+mount -t devpts - /dev/pts
+
+mkdir -p /sys/fs/cgroup
+mount -t tmpfs - /sys/fs/cgroup
+mkdir /sys/fs/cgroup/unified
+mount -o rw,nsdelegate -t cgroup2 - /sys/fs/cgroup/unified
+
+for t in cpu,cpuacct blkio memory perf_event pids cpuset freezer devices; do
+	mkdir /sys/fs/cgroup/${t}
+	mount -o rw,${t} -t cgroup - /sys/fs/cgroup/${t}
+done
+
+# https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=968199
+ln -sf /proc/self/fd /dev/fd
+ln -sf /dev/fd/0 /dev/stdin
+ln -sf /dev/fd/1 /dev/stdout
+ln -sf /dev/fd/2 /dev/stderr
+'
+
+# Profile spawning interactive shell before init, for debugging purposes
+profile_shell() {
+	PROGS="${PROGS} bash cat chmod lsmod modprobe find grep mknod mv rm
+	       umount"
+	NODES="${NODES}
+	       tty
+	       ttyS0"
+	FIXUP="${FIXUP}
+	       bash"
+}
+
+# Profile to install pbench-server from Fedora packages, spawn shell before init
+profile_pbench() {
+	PROGS="${PROGS} bash env grep sed p11-kit cat mkdir chown chmod
+	       basename hostname vim"
+	LINKS="
+		 bash		/init
+		 bash		/bin/sh
+		 bash		/usr/bin/bash
+	"
+
+	__f32="https://download.fedoraproject.org/pub/fedora/linux/releases/32"
+	__f32pkg="${__f32}/Everything/x86_64/os/Packages"
+	__copr="https://copr-be.cloud.fedoraproject.org"
+	__ndokos="${__copr}/results/ndokos/pbench/fedora-32-x86_64"
+	PKGS="
+		${__ndokos}/01496531-fio/fio-3.19-1.x86_64.rpm
+		${__f32pkg}/p/python3-libs-3.8.2-2.fc32.i686.rpm
+		${__f32pkg}/p/python3-3.8.2-2.fc32.x86_64.rpm
+		${__f32pkg}/t/tzdata-2019c-3.fc32.noarch.rpm
+		${__f32pkg}/c/ca-certificates-2020.2.40-3.fc32.noarch.rpm
+		${__f32pkg}/p/python3-pysocks-1.7.1-4.fc32.noarch.rpm
+		${__f32pkg}/p/python3-idna-2.8-6.fc32.noarch.rpm
+		${__f32pkg}/p/python3-urllib3-1.25.7-3.fc32.noarch.rpm
+		${__f32pkg}/p/python3-six-1.14.0-2.fc32.noarch.rpm
+		${__f32pkg}/p/python3-dateutil-2.8.0-8.fc32.noarch.rpm
+		${__f32pkg}/p/python3-s3transfer-0.3.3-1.fc32.noarch.rpm
+		${__f32pkg}/p/python3-docutils-0.15.2-4.fc32.noarch.rpm
+		${__f32pkg}/p/python3-jmespath-0.9.4-4.fc32.noarch.rpm
+		${__f32pkg}/p/python3-botocore-1.14.17-2.fc32.noarch.rpm
+		${__f32pkg}/p/python3-boto3-1.11.17-1.fc32.noarch.rpm
+		${__ndokos}/01506210-pbench-server/pbench-server-0.69.2-2g5c0ea483.noarch.rpm
+	"
+	FIXUP="${FIXUP}
+	       sh"
+}
+
+################################################################################
+
+
+### Helpers ####################################################################
+
+# List of tools used here, assigned to uppercase variable names
+TOOLS="basename bc cat cd chmod cp cpio depmod diff dirname du file find grep
+       gzip ldconfig ldd ln ls mkdir mknod mktemp modprobe mv printf readlink
+       realpath rm seq strip sync umount uname wget"
+
+# err() - Print error and exit
+# $@:	Error message, optionally with printf format and arguments
+err() {
+	( printf "Error: "; printf "$@"; echo ) 1>&2
+	exit 1
+}
+
+# warn() - Warn to standard error
+# $@:	Warning message, optionally with printf format and arguments
+warn() {
+	( printf "Warning: "; printf "$@"; echo ) 1>&2
+}
+
+# notice() - Print notice-level messages
+# $@:	Notice, optionally with printf format and arguments, can be empty
+notice() {
+	( { [ -z "${1}" ] && echo; } || { printf "$@"; echo; } ) 1>&2
+}
+
+# info() - Print informational messages for verbose operation
+# $@:	Message, optionally with printf format and arguments
+info() {
+	{ [ "${VERBOSE}" = "y" ] && ( { printf "$@"; echo; } ) 1>&2; } || :
+}
+
+# cmd_check() - Check that a command exists, assign to uppercase variable
+# $1:	Command name, can be an alias
+cmd_check() {
+	if ! eval $(echo "${1}" |
+		   tr 'a-z-' 'A-Z_')="\$(command -v ${1})"; then
+		err "${1} not found"
+	fi
+}
+
+# cleanup() - Remove left-overs on exit, used from trap
+cleanup() {
+	[ -n "${ARCHIVEMOUNT}" ] && "${UMOUNT}" "${wd}" 2>/dev/null
+	[ -n "${wd}" ] && "${RM}" -rf "${wd}"
+	[ -n "${pkg_tmp}" ] && "${RM}" -f "${pkg_tmp}"
+	[ -n "${compress_test1}" ] && "${RM}" -f "${compress_test1}"
+	[ -n "${compress_test2}" ] && "${RM}" -f "${compress_test2}"
+	exit 0
+}
+
+# dir_size() - Print summed size of directories with SI suffix
+# $*:	Paths, can be names of files and directories, mixed
+dir_size() {
+	IFS='
+'
+	for __l in $("${CD}" "${wd}"; "${DU}" -c --si "${@}" 2>/dev/null); do
+		__last_size="${__l}"
+	done
+	echo "${__last_size%[ 	]*}"
+	unset IFS
+}
+
+# strip_all() - Strip all executables in working directory, $wd
+strip_all() {
+	for __f in $("${FIND}" "${wd}"); do
+		case $("${FILE}" -bi "${__f}") in
+		"application/x-sharedlib;"*|"application/x-executable;"*)
+			"${STRIP}" -s "${__f}" -R .comment 2>/dev/null || ::
+			;;
+		*)
+			;;
+		esac
+	done
+}
+
+# fixup_apply() - Apply fix-up script to /init, from $FIXUP or passed in options
+fixup_apply() {
+	[ -n "${SCRIPT}" ] && [ "${SCRIPT}" = "-" ] && return
+	[ -z "${SCRIPT}" ] && [ -z "${FIXUP}" ] && return
+
+	__call="$("${READLINK}" "${wd}/init")"
+	rm "${wd}/init"
+
+	if [ -n "${SCRIPT}" ]; then
+		"${CP}" "${SCRIPT}"
+	else
+		echo "${FIXUP}" > "${wd}/init"
+	fi
+	echo "/${__call}" >> "${wd}/init"
+	"${CHMOD}" 755 "${wd}/init"
+}
+
+################################################################################
+
+
+### CPIO #######################################################################
+
+# cpio_init() - Source existing CPIO archive, or create if needed
+# $1:	Path to CPIO archive, might exist, might be discarded if existing
+cpio_init() {
+	wd="$("${MKTEMP}" -d)"
+	if [ -f "${OUT}" ] && [ "${1}" != "discard" ]; then
+		info "Sourcing CPIO archive from ${OUT}"
+
+		if ! "${GZIP}" -dfc "${OUT}" |
+		   "${CPIO}" --quiet -iD "${wd}"; then
+			err "Invalid CPIO archive ${OUT}"
+		fi
+	else
+		info "Creating new CPIO archive"
+
+		if [ -z "${OUT}" ]; then
+			OUT="$("${MKTEMP}")"
+			notice "Creating image: ${OUT}"
+		else
+			OUT="$("${REALPATH}" "${OUT}")"
+		fi
+
+		if [ -n "${ARCHIVEMOUNT}" ]; then
+			: | "${CPIO}" --create -H newc --quiet | \
+				"${GZIP}" > "${OUT}"
+		fi
+	fi
+
+	if [ -n "${ARCHIVEMOUNT}" ]; then
+		"${ARCHIVEMOUNT}" "${OUT}" "${wd}"
+		info "Mounted CPIO archive ${OUT} at ${wd}"
+	fi
+}
+
+# cpio_compress() - Compress archive, test available methods if none is selected
+# $1:	Existing CPIO archive
+cpio_compress() {
+	[ "${COMPRESS}" = "none" ] && return
+
+	info "Compressing CPIO archive ${1}"
+
+	if [ -n "${COMPRESS}" ] && [ "${COMPRESS}" != "auto" ]; then
+		[ "${COMPRESS}" = "lzo" ] && __cmd="lzop" || __cmd="${COMPRESS}"
+
+		cmd_check "${__cmd}"
+		[ "${__cmd}" = "lz4" ] && __opt="-l" || __opt="-S .lz4"
+
+		"${__cmd}" ${__opt} -f -q -9 "${1}"
+		mv "${1}.lz4" "${1}"
+
+		return
+	fi
+
+	if [ ! -f "/boot/config-${KERNEL}" ]; then
+		"${GZIP}" -9 "${1}"
+		"${MV}" "${1}.gz" "${1}"
+		return
+	fi
+
+	compress_test1="$("${MKTEMP}")"
+	compress_test2="$("${MKTEMP}")"
+
+	__min_time=
+	for __a in gzip lz4 lzo lzma xz; do
+		[ "${__a}" = "lzo" ] && __cmd="lzop" || __cmd="${__a}"
+		__kcfg="CONFIG_RD_$(echo "${__a}" | tr '[:lower:]' '[:upper:]')"
+
+		if ! command -v "${__cmd}" > /dev/null 2>&1 ||
+		   ! "${GREP}" -q "${__kcfg}" "/boot/config-${KERNEL}"; then
+			continue
+		fi
+
+		"${__cmd}" -q -9 -c "${1}" > "${compress_test1}"
+
+		__start=$("${CAT}" /proc/uptime)
+		__start="${__start% *}"
+
+		for _ in $("${SEQ}" 1 5); do
+			"${CP}" "${compress_test1}" "${compress_test2}"
+			${__cmd} --force -d -c "${compress_test2}" > /dev/null
+		done
+
+		__end=$("${CAT}" /proc/uptime)
+		__end="${__end% *}"
+
+		__time="$(echo "${__end} - ${__start}" | "${BC}" -l)"
+		__size="$("${LS}" -s --block-size=1 "${compress_test1}")"
+		__size="${__size%% *}"
+
+		if [ -z "${__min_time}" ]; then
+			__min_time="${__time}"
+			__pick="${__a}"
+		else
+			__cmp="$(echo "${__time} < ${__min_time}" | "${BC}" -l)"
+			if [ "${__cmp}" = "1" ]; then
+				__min_time="${__time}"
+				__pick="${__a}"
+			fi
+		fi
+
+		notice "%5s %15s, 5 cycles in %7s" \
+		       "${__a}:" "${__size} bytes" "${__time}s"
+	done
+
+	[ "${__pick}" = "lzo" ] && __cmd="lzop" || __cmd="${__pick}"
+	[ "${__cmd}" = "lz4" ] && __opt="-l" || __opt=""
+
+	"${__cmd}" ${__opt} -q -9 -c "${1}" > "${compress_test1}"
+	notice "Picked ${__pick} compression for CPIO"
+
+	mv "${compress_test1}" "${OUT}"
+	rm "${compress_test2}"
+}
+
+################################################################################
+
+
+### Shared libraries ###########################################################
+
+# libs_path_add() - Add library path to dynamic linker configuration
+# $1:	Path to be added, skipped if already present
+libs_path_add() {
+	for __l in $("${CAT}" "${wd}/etc/ld.so.conf" 2>/dev/null); do
+		[ "${__l}" = "${1}" ] && return
+	done
+	"${MKDIR}" -p "${wd}/etc"
+	echo "${1}" >> "${wd}/etc/ld.so.conf"
+	"${LDCONFIG}" -r "${wd}"
+}
+
+# libs_copy_ld_so() - Copy run-time linker program, mimic location from host
+# $1:	Path to run-time linker
+libs_copy_ld_so() {
+	[ -f "${wd}/${1}" ] && return
+
+	__destdir="$("${DIRNAME}" "${wd}/${1}")"
+	"${MKDIR}" -p "${__destdir}"
+
+	"${CP}" --parents --preserve=all "${1}" "${wd}"
+}
+
+# libs_copy() - Recursively copy shared dependencies for programs and libraries
+# $1:	Host path to program or library
+libs_copy() {
+	info "Sourcing shared object dependencies for ${1}"
+
+	# ldd might succeed and print errors on stdout when paths are not found.
+	# Skip those lines, as those paths are not actually needed on the host.
+	for __l in $("${LDD}" "${1}" 2>/dev/null | "${GREP}" -v "ERROR:"); do
+		__path="${__l##*=> }"
+		[ "${__path}" = "not found" ] && continue
+		[ "${__l}" = "${__path}" ] && continue
+		__path="${__path%% *}"
+
+		# fakeroot dependency from LD_PRELOAD will always appear, skip
+		[ "$("${BASENAME}" "${__path}")" = "libfakeroot-sysv.so" ] && \
+			continue
+
+		__destpath="${wd}/${__path}"
+		[ -f "${__destpath}" ] && continue
+
+		__destdir="$("${DIRNAME}" "${__destpath}")"
+		"${MKDIR}" -p "${__destdir}"
+
+		"${CP}" --parents --preserve=all "${__path}" "${wd}"
+		libs_path_add "${__destdir##${wd}}"
+
+		# Recurse over all shared object dependencies
+		libs_copy "${__path}"
+	done
+
+	# Dynamic linker is listed as single path, make sure we copy it once
+	__ld_so=
+	for __l in $("${LDD}" "${1}" 2>/dev/null); do
+		case ${__l} in "/"*" "*) __ld_so="${__l% *}" ;; *) ;; esac
+	done
+	if [ -n "${__ld_so}" ]; then
+		libs_copy_ld_so "${__ld_so}"
+		libs_path_add "${__ld_so##${wd}}"
+	fi
+}
+
+################################################################################
+
+
+### Programs ###################################################################
+
+# prog_link() - Link from $LINKS to sourced program from $PROGS
+# $1:	Program name from $PROGS
+# $2:	Target on working directory $wd
+# $3:	First token of line from $LINKS, skip if not matching
+# $4:	Link name, second token from $LINKS line
+prog_link() {
+	[ "${1}" != "${3}" ] && return
+	"${MKDIR}" -p "$("${DIRNAME}" "${wd}${4}")"
+	"${LN}" -s "${2}" "${wd}${4}" 2>/dev/null || :
+}
+
+# prog_add() - Add a program from $PROGS
+# $1:	Program name seen from shell
+prog_add() {
+	info "Adding program ${1}"
+
+	IFS=','
+	for __a in ${1}; do
+		__bin="$(command -v "${__a}")" && break
+	done
+	unset IFS
+
+	[ -z "${__bin}" ] && err "Can't source ${1}"
+
+	# Binaries in /usr/libexec are meant to run on other hosts only, so they
+	# can't reside in /usr/libexec on the target image. Move to /usr/bin.
+	if [ "$("${DIRNAME}" "${__bin}")" = "/usr/libexec" ]; then
+		__bindir="${wd}/usr/bin"
+	else
+		__bindir="${wd}$("${DIRNAME}" "${__bin}")"
+	fi
+
+	"${MKDIR}" -p "${__bindir}"
+	"${CP}" --preserve=all "${__bin}" "${__bindir}"
+
+	IFS='
+'
+	for __l in ${LINKS}; do
+		IFS=' 	'
+		prog_link "${1}" \
+			  "${__bindir##${wd}}/$("${BASENAME}" "${__bin}")" \
+			  ${__l}
+		IFS='
+'
+	done
+
+	IFS='	
+'
+	libs_copy "${__bin}"
+	unset IFS
+}
+
+################################################################################
+
+
+### Kernel modules #############################################################
+
+# kmod_init() - Set $KERNEL, create modules directory on working image $wd
+kmod_init() {
+	KERNEL="${KERNEL:-$("${UNAME}" -r)}"
+
+	"${MKDIR}" -p "${wd}/lib/modules/${KERNEL}/kernel"
+}
+
+# __kmod_node() - Actually create device node for path found in modules.devname
+# $1:	Module name, not used here, indicates grep matched in caller
+# $2:	Name of device node
+# $3:	Type and device major as a single token, from modules.devname
+# $4:	Device minor
+__kmod_node() {
+	{ [ -z "${1}" ] || [ -e "${wd}/dev/${2}" ]; } && return
+
+	"${MKDIR}" -p "$("${DIRNAME}" "${wd}/dev/${2}")"
+	"${MKNOD}" "${wd}/dev/${2}" "${3%%[0-9]*}" "${3#[a-z]*}" "${4}"
+}
+
+# kmod_node() - Add device nodes for on-demand module loading
+# $1:	Module name
+kmod_node() {
+	__devname="${MODDIR}/lib/modules/${KERNEL}/modules.devname"
+	IFS=' :'
+	__kmod_node $("${GREP}" "^${1}" "${__devname}")
+	unset IFS
+}
+
+# kmod_add() - Add a kernel module to working directory
+# $1:	Module name
+kmod_add() {
+	info "Adding kernel module ${1}"
+
+	IFS='
+'
+	for __f in $("${MODPROBE}" -S "${KERNEL}" -d "${MODDIR}" -q \
+		     --show-depends "${1}"); do
+		unset IFS
+
+		# If a module is built-in, skip copy, but check if we need to
+		# add a device node for on-demand loading.
+		if [ "${__f}" != "builtin ${1}" ]; then
+			__src="${__f##insmod }"
+			# Some modprobe implementations add one trailing space
+			__src="${__src%* }"
+			__dst="${wd}${__src##MODDIR}"
+			if ! "${DIFF}" "${__src}" "${__dst}" 2>/dev/null; then
+				"${MKDIR}" -p "$("${DIRNAME}" "${__dst}")"
+				"${CP}" -a "${__src}" "${__dst}"
+			fi
+		fi
+
+		kmod_node "${1}"
+		IFS='
+'
+	done
+	unset IFS
+}
+
+# kmod_post() - Copy files for modprobe on target, run depmod
+kmod_post() {
+	"${CP}" -a "${MODDIR}/lib/modules/${KERNEL}/modules.order" \
+		   "${MODDIR}/lib/modules/${KERNEL}/modules.builtin" \
+		   "${wd}/lib/modules/${KERNEL}"
+	"${DEPMOD}" -b "${wd}"
+}
+
+################################################################################
+
+
+### Device nodes ###############################################################
+
+# node_add() - Add device node from $NODES
+node_add() {
+	info "Adding device node ${1}"
+
+	"${MKDIR}" -p "$("${DIRNAME}" "${wd}/dev/${1}")"
+	if [ -n "${2}" ]; then
+		"${MKNOD}" "${wd}/dev/${1}" "${2}" "${3}" "${4}"
+	else
+		"${CP}" -a "/dev/${1}" "${wd}/dev/"
+	fi
+}
+
+################################################################################
+
+
+### Packages ###################################################################
+
+# pkg_deb_add() - Extract Debian package, source shared object dependencies
+# $1:	Package file
+pkg_deb_add() {
+	cmd_check dpkg-deb
+
+	info "Adding Debian package ${1}"
+
+	for __f in $("${DPKG_DEB}" -X "${1}" "${wd}"); do
+		__type="$("${FILE}" -bi "${wd}/${__f}")"
+		if [ "${__type%%;*}" = "application/x-sharedlib" ] ||
+		   [ "${__type%%;*}" = "application/x-executable" ]; then
+			IFS='
+'
+			libs_copy "${wd}/${__f}"
+			unset IFS
+		fi
+	done
+}
+
+# pkg_deb_add() - Extract RPM package, source shared object dependencies
+# $1:	Package file
+pkg_rpm_add() {
+	cmd_check rpm2cpio
+
+	info "Adding RPM package ${1}"
+
+	for __f in $("${RPM2CPIO}" "${1}" |
+		     cpio -D "${wd}" --quiet -idvmu 2>&1 |
+		     "${GREP}" -v "cpio:"); do
+		__type="$("${FILE}" -bi "${wd}/${__f}")"
+		if [ "${__type%%;*}" = "application/x-sharedlib" ] ||
+		   [ "${__type%%;*}" = "application/x-executable" ]; then
+			IFS='
+'
+			libs_copy "${wd}/${__f}"
+			unset IFS
+		fi
+	done
+}
+
+# pkg_add() - Source and extract a package into working directory
+# $1:	Package file or URL
+pkg_add() {
+	info "Adding package ${1}"
+
+	pkg_tmp="$("${MKTEMP}")"
+
+	if [ ! -f "${1}" ]; then
+		info "Downloading ${1}"
+		"${WGET}" --quiet -O "${pkg_tmp}" "${1}" || \
+			err "${1} not found"
+		__file="${pkg_tmp}"
+	else
+		__file="${1}"
+	fi
+
+	case $("${FILE}" -bi "${__file}") in
+	"application/vnd.debian.binary-package;"*)
+		pkg_deb_add "${__file}"
+		;;
+	"application/x-rpm;"*)
+		pkg_rpm_add "${__file}"
+		;;
+	*)
+		err "package format not supported"
+		;;
+	esac
+
+	rm "${pkg_tmp}"
+}
+
+################################################################################
+
+
+### Commands and user interface ################################################
+
+# build() - Build a new image, sourcing contents
+build() {
+	cpio_init discard
+	kmod_init
+
+	for __d in ${DIRS}; do
+		"${MKDIR}" -p "${wd}${__d}"
+	done
+
+	for __p in ${PROGS}; do
+		PATH="${PATH}:/usr/libexec:/sbin:/usr/sbin" prog_add "${__p}"
+	done
+
+	for __k in ${KMODS}; do
+		kmod_add "${__k}"
+	done
+	kmod_post
+
+	IFS='
+'
+	for __n in ${NODES}; do
+		IFS=' 	'
+		node_add ${__n}
+		IFS='
+'
+	done
+	unset IFS
+
+	for __c in ${COPIES}; do
+		"${CP}" --parent -a "${__c}" "${wd}"
+	done
+
+	for __p in ${PKGS}; do
+		pkg_add "${__p}"
+	done
+
+	fixup_apply
+}
+
+# add() - Add contents to existing image
+# $1:	Item to be added
+add() {
+	[ -z "${wd}" ] && cpio_init
+	kmod_init
+
+	[ -f "${1}" ] && __path="${1}" || __path=$(command -v "${1}") || :
+	if [ ! -f "${__path}" ]; then
+		{ pkg_add "${1}" && return; } || err "${1} not found"
+	fi
+
+	case $("${FILE}" -bi "${__path}") in
+	"application/x-sharedlib;"*)
+		PATH="${PATH}:/usr/libexec:/sbin:/usr/sbin" prog_add "${__p}"
+		;;
+	"application/x-object;"*)
+		kmod_add "${__path}"
+		kmod_post
+		;;
+	"application/vnd.debian.binary-package;"*)
+		pkg_deb_add "${__path}"
+		;;
+	"application/x-rpm;"*)
+		pkg_rpm_add "${__path}"
+		;;
+	*)
+		"${CP}" --parent -a "${__path}" "${wd}"
+		;;
+	esac
+}
+
+# stats() - Print size information about created image
+stats() {
+	__bin="$(dir_size bin usr/bin sbin usr/sbin usr/local/bin \
+		 usr/local/sbin)"
+	__lib="$(dir_size --exclude='lib/modules/' lib lib64 usr/lib usr/lib32 \
+		 usr/lib64 usr/local/lib)"
+	__mod="$(dir_size lib/modules)"
+	__sum="$(dir_size .)"
+
+	__compressed="$("${DU}" --si "${OUT}")"
+	__compressed="${__compressed%[ 	]*}"
+
+	notice "Size: bin %5s lib %5s kmod %5s total %5s compressed %5s" \
+	       "${__bin}" "${__lib}" "${__mod}" "${__sum}" "${__compressed}"
+}
+
+# cmds() - Loop over non-option arguments if any, just build image otherwise
+# $@:	Command arguments
+cmds() {
+	wd=
+	{ [ ! -f "${OUT}" ] || [ -z "${1}" ]; } && build
+
+	for arg do
+		add "${arg}"
+	done
+
+	[ "${STRIP}" != "n" ] && strip_all
+
+	if [ -z "${ARCHIVEMOUNT}" ]; then
+		( __out="$("${REALPATH}" "${OUT}")"
+		  "${CD}" "${wd}"
+		  "${FIND}" . | "${CPIO}" --create -H newc --quiet > "${OUT}"
+		  cpio_compress "${__out}"
+		)
+	else
+		"${SYNC}"
+	fi
+
+	stats
+
+	notice "Kata Containers [hypervisor.qemu] configuration:"
+	notice
+	notice "	kernel = \"/boot/vmlinuz-${KERNEL}\""
+	notice "	initrd = \"$("${REALPATH}" "${OUT}")\""
+	notice
+
+	if [ -n "${ARCHIVEMOUNT}" ]; then
+		trap - EXIT
+		notice "initramfs mounted at: ${wd}"
+	fi
+}
+
+# usage() - Print usage and exit
+usage() {
+	echo "${0} [OPTIONS] [ADD_ON]..."
+	echo
+	echo "Options:"
+	echo "	-c gzip|lz4|lzma|lzo|auto|none"
+	echo "		compression method for CPIO file. Default: auto"
+	echo "	-d"
+	echo "		don't strip binary objects"
+	echo "	-f PATH"
+	echo "		path for initramfs. Default: temporary file"
+	echo "	-k VERSION"
+	echo "		kernel version. Default: $(uname -r)"
+	echo "	-m PATH"
+	echo "		relative root for /lib/modules. Default: /"
+	echo "	-p PROFILE"
+	echo "		select profile for add-ons (see profile_*() in script)"
+	echo "	-s SCRIPT|-"
+	echo "		fix-up script to run before init, '-' for none"
+	echo "	-v: verbose"
+	echo "	-h: show this help"
+	echo
+	echo "Build initramfs image unless an existing one is passed."
+	echo "Additional programs, kernel modules, device nodes, generic files"
+	echo "can be passed as a list of ADD_ON parameters."
+	echo
+	echo "Distribution packages (deb and RPM currently supported) can be"
+	echo "added too, but they will simply be extracted, not installed."
+	echo "Package dependencies are also not sourced."
+	echo
+	echo "Environmental variables can be used to replace:"
+	echo "	PROGS"
+	echo "		base programs"
+	echo "	KMODS"
+	echo "		base kernel modules"
+	echo "	NODES"
+	echo "		device nodes, one per line. Copied from host if just"
+	echo "		name is given, created if 'NAME TYPE MAJOR MINOR'"
+	echo "	LINKS"
+	echo "		link to programs by name, one per line, in the form"
+	echo "			PROGRAM PATH"
+	echo "	DIRS"
+	echo "		list of initial set of empty directories"
+	echo "	COPIES"
+	echo "		full copy of path, preserving attributes and parents"
+	echo
+	echo "Examples:"
+	echo "	${0}"
+	echo "		Build a base image as a temporary file"
+	echo "	${0} grep"
+	echo "		Build a new image including grep and needed libraries"
+	echo "	${0} -f kata.img zsh_5.6.2-3_amd64.deb"
+	echo "		Install zsh package to pre-existing kata.img"
+	echo "	${0} -v -f kata.img -p shell -c lz4"
+	echo "		Use lz4 compression, run a shell before proceeding"
+	exit 1
+}
+
+################################################################################
+
+
+# Entry point: if we're not running as root, re-run with fakeroot
+if [ "${LD_PRELOAD}" != "libfakeroot-sysv.so" ] && [ "$(id -u)" -ne 0 ]; then
+	if ! FAKEROOT="$(command -v fakeroot)"; then
+		err "Not root and no fakeroot available, exiting"
+	fi
+	PATH="${PATH}:/sbin:/usr/sbin" "${FAKEROOT}" "${0}" "$@"
+	exit ${?}
+fi
+
+# Parse options
+while getopts c:df:k:m:p:s:vh __opt; do
+	case ${__opt} in
+	c) COMPRESS="${OPTARG}"	;;
+	d) STRIP="n"		;;
+	f) OUT="${OPTARG}"	;;
+	k) KERNEL="${OPTARG}"	;;
+	m) MODDIR="${OPTARG}"	;;
+	p) PROFILE="${OPTARG}"	;;
+	s) SCRIPT="${OPTARG}"	;;
+	v) VERBOSE="y"		;;
+	h|*) usage		;;
+	esac
+done
+shift $((OPTIND - 1))
+
+# Check needed tools, exit if any is missing
+for __l in ${TOOLS}; do
+	cmd_check "${__l}"
+done
+
+# Apply profile requested via -p, if any, from matching profile_*() function
+if [ -n "${PROFILE}" ]; then
+	notice "Applying profile ${PROFILE}"
+	eval "profile_${PROFILE}" || err "profile ${PROFILE} not found"
+fi
+
+# Check if we can keep the CPIO mounted for convenience as we exit. This isn't
+# safe with fakeroot, as contents can't be touched before the environment
+# save-file is loaded again, so it needs root (and archivemount).
+if [ "${LD_PRELOAD}" = "libfakeroot-sysv.so" ]; then
+	if command -v archivemount >/dev/null 2>&1; then
+		notice "Not running as root, won't keep cpio mounted"
+	fi
+elif ! ARCHIVEMOUNT="$(command -v archivemount)"; then
+	warn "archivemount not available, won't keep cpio mounted"
+fi
+
+trap cleanup EXIT
+
+cmds "$@"
+
+exit 0
