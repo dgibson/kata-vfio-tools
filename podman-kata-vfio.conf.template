@@ -1,6 +1,0 @@
-
-# Added by scripts from kata-vfio-tools tree
-
-kata-vfio = [
-	"%KATARUNTIME%",
-]

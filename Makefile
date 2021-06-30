@@ -1,7 +1,10 @@
-BUILD = $(CURDIR)/build
+BUILD=$(CURDIR)/build
+KATASRC = ~/src/kata-containers
+
 KATAPREFIX = $(BUILD)/prefix
-KATACONFIG = $(KATAPREFIX)/etc/kata-containers/configuration.toml
-PODMAN_CONF = /usr/share/containers/containers.conf
+KATACONFIG = $(BUILD)/configuration.toml
+
+CRIO_CONF = /etc/crio/crio.conf
 INITRD = $(KATAPREFIX)/var/cache/kata-containers/kata-containers-initrd.img
 OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
 AGENT_TREE = $(BUILD)/agent
@@ -20,8 +23,6 @@ VFIO_REPO = https://github.com/dgibson
 VFIO_REF = vfio
 
 export GOPATH = $(BUILD)/go
-KATASRC = $(GOPATH)/src/github.com/kata-containers
-RUNTIME_PKGS = runtime proxy shim
 DRACUTFILES = 15-dracut-fedora.conf 99-vfio.conf
 OSBUILDER_DRACUTFILES = $(DRACUTFILES:%=$(DRACUTDIR)/%)
 
@@ -29,19 +30,19 @@ UPSTREAM_SOURCES = $(KATASRC)/proxy $(KATASRC)/shim \
 	$(KATASRC)/osbuilder
 VFIO_SOURCES = $(KATASRC)/agent $(KATASRC)/runtime
 
-all: runtime $(INITRD)
+all: runtime #$(INITRD)
 
-runtime: $(RUNTIME_PKGS:%=%-install) $(KATACONFIG)
+runtime: runtime-install $(KATACONFIG)
 
-$(RUNTIME_PKGS:%=%-build): %-build: $(KATASRC)/%
-	make -C $< PREFIX=$(KATAPREFIX) SYSCONFIG=$(KATACONFIG)
+runtime-install: runtime-build
+	make -C $(KATASRC)/src/runtime install PREFIX=$(KATAPREFIX) SYSCONFIG=$(KATACONFIG)
 
-$(RUNTIME_PKGS:%=%-install): %-install: $(KATASRC)/% %-build
-	make -C $< PREFIX=$(KATAPREFIX) SYSCONFIG=$(KATACONFIG) install
+runtime-build:
+	make -C $(KATASRC)/src/runtime PREFIX=$(KATAPREFIX) SYSCONFIG=$(KATACONFIG)
 
 $(KATACONFIG): configuration.toml.template Makefile
 	mkdir -p $(dir $@)
-	sed 's!%KATAPREFIX%!$(KATAPREFIX)!;s!%QEMU%!$(QEMU)!' < $< > $@
+	sed 's!%BUILD%!$(BUILD)!;s!%QEMU%!$(QEMU)!' < $< > $@
 
 agent: $(KATASRC)/agent
 	make -C $<
@@ -74,5 +75,5 @@ clean:
 	rm -rf $(BUILD)
 	rm -f *~
 
-podman-conf-kata-vfio: podman-kata-vfio.conf.template
-	sed 's!%KATARUNTIME%!$(KATAPREFIX)/bin/kata-runtime!' < $< >> $(PODMAN_CONF)
+crio-conf-kata-vfio: kata-vfio-crio.conf.template
+	sed 's!%KATASHIMV2%!$(KATAPREFIX)/bin/containerd-shim-kata-v2!' < $< >> $(CRIO_CONF)

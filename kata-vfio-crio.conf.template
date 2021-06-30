@@ -1,0 +1,4 @@
+[crio.runtime.runtimes.kata-vfio]
+runtime_path = "%KATASHIMV2%"
+runtime_type = "vm"
+runtime_root = "/run/vc"
