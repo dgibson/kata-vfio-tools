@@ -12,9 +12,32 @@ TBD
 
 Install the packages you'll need.  In Fedora:
 
-> # dnf module enable cri-o:1.20
-> # dnf install cri-o cri-tools containernetworking-plugins
+> # dnf install cri-tools containernetworking-plugins
 
+## Build and install CRI-O
+
+Unfortunately as of Jun 30 2021 Fedora's latest cri-o version is
+`cri-o-2:1.19.0-43.gitc00d425.module_f34+10209+fb610d12.x86_64`.  This
+doesn't have the fix for `https://github.com/cri-o/cri-o/issues/4589`,
+which will break the way this repo tries to build things. 
+
+```
+$ git clone https://github.com/cri-o/cri-o.git
+$ cd cri-o
+$ make
+$ sudo make install
+$ sudo cp 10-crio-bridge.conf /etc/cni/net.d
+```
+
+And you'll need to point it at the Fedora packaged CNI plugins, by
+creating `/etc/crio/crio.conf.d/rpm-cni.conf` with the contents
+```
+[crio.network]
+
+plugin_dirs = [
+	"/usr/libexec/cni",
+]
+```
 
 ### Running a test container with crictl + runc
 
@@ -73,6 +96,19 @@ This will build and (minimally) install Kata underneath `build/` in
 the `kata-vfio-tools` tree, so that it doesn't mess up things on your
 host system (and doesn't need root).
 
+You'll also need to point Kata at the right kernel.  Look for the `mbuto` output from the `make` above, e.g.:
+```
+Kata Containers [hypervisor.qemu] configuration:
+
+	kernel = "/boot/vmlinuz-5.12.12-300.fc34.x86_64"
+	initrd = "/home/dwg/src/kata-vfio-tools/build/kata-initrd.img"
+```
+
+Then
+```
+$ ln -s /boot/vmlinuz-5.12.12-300.fc34.x86_64 build/kata-vmlinuz
+```
+
 ### Configuring CRI-O to use your local Kata build
 
 As root, run:
@@ -81,7 +117,7 @@ As root, run:
 # make crio-conf-kata-vfio
 ```
 
-That will append a stanza to `/etc/crio/crio.conf` with the correct
-configuration for your local Kata build under the name `kata-vfio`.
-You only need to do this once, if it needs updating, you'll have to
-manually remove it from `crio.conf` and re-run.
+That will rewrite `/etc/crio/crio.conf.d/kata-vfio.conf` with the
+correct configuration for your local Kata build under the name
+`kata-vfio`.
+

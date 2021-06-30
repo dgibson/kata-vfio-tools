@@ -133,7 +133,7 @@ disable_block_device_use = false
 shared_fs = "virtio-fs"
 
 # Path to vhost-user-fs daemon.
-virtio_fs_daemon = "/home/dwg/src/kata-vfio-tools/build/prefix/libexec/kata-qemu/virtiofsd"
+virtio_fs_daemon = "%VIRTIOFSD%"
 
 # List of valid annotations values for the virtiofs daemon
 # The default if not set is empty (all annotations rejected.)

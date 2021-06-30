@@ -7,7 +7,7 @@ KATACONFIG = $(BUILD)/configuration.toml
 KERNEL = $(BUILD)/kata-vmlinuz
 INITRD = $(BUILD)/kata-initrd.img
 
-CRIO_CONF = /etc/crio/crio.conf
+CRIO_CONF = /etc/crio/crio.conf.d/kata-vfio.conf
 
 AGENT_BIN = $(KATASRC)/src/agent/target/x86_64-unknown-linux-gnu/release/kata-agent
 MBUTO = $(CURDIR)/mbuto
@@ -21,6 +21,8 @@ QEMU := /usr/libexec/qemu-kvm
 ifneq ($(wildcard $(QEMU)),$(QEMU))
 QEMU := /usr/bin/qemu-system-x86_64
 endif
+
+VIRTIOFSD := /usr/libexec/virtiofsd
 
 export GOPATH = $(BUILD)/go
 
@@ -36,7 +38,7 @@ runtime-build:
 
 $(KATACONFIG): configuration.toml.template Makefile
 	mkdir -p $(dir $@)
-	sed 's!%BUILD%!$(BUILD)!;s!%QEMU%!$(QEMU)!' < $< > $@
+	sed 's!%BUILD%!$(BUILD)!;s!%QEMU%!$(QEMU)!;s!%VIRTIOFSD%!$(VIRTIOFSD)!' < $< > $@
 
 agent: $(AGENT_BIN)
 
@@ -54,7 +56,7 @@ clean:
 	rm -f *~
 
 crio-conf-kata-vfio: kata-vfio-crio.conf.template
-	sed 's!%KATASHIMV2%!$(KATAPREFIX)/bin/containerd-shim-kata-v2!' < $< >> $(CRIO_CONF)
+	sed 's!%KATASHIMV2%!$(KATAPREFIX)/bin/containerd-shim-kata-v2!' < $< > $(CRIO_CONF)
 
 .PHONY: FORCE
 
