@@ -1,5 +1,5 @@
 BUILD=$(CURDIR)/build
-KATASRC = ~/src/kata-containers
+KATASRC = $(HOME)/src/kata-containers
 
 KATAPREFIX = $(BUILD)/prefix
 KATACONFIG = $(BUILD)/configuration.toml
@@ -9,13 +9,14 @@ INITRD = $(BUILD)/kata-initrd.img
 
 CRIO_CONF = /etc/crio/crio.conf.d/kata-vfio.conf
 
-AGENT_BIN = $(KATASRC)/src/agent/target/x86_64-unknown-linux-gnu/release/kata-agent
-MBUTO = $(CURDIR)/mbuto
 
 OSBUILDER_SCRIPT = $(BUILD)/vfio-kata-osbuilder.sh
 AGENT_TREE = $(BUILD)/agent
-OSBUILDER = $(KATASRC)/osbuilder
+AGENT_BIN = $(AGENT_TREE)/usr/bin/kata-agent
+OSBUILDER = $(KATASRC)/tools/osbuilder
 DRACUTDIR = $(OSBUILDER)/dracut/dracut.conf.d
+DRACUTFILES = 15-dracut-fedora.conf 99-vfio.conf
+OSBUILDER_DRACUTFILES = $(DRACUTFILES:%=$(DRACUTDIR)/%)
 
 QEMU := /usr/libexec/qemu-kvm
 ifneq ($(wildcard $(QEMU)),$(QEMU))
@@ -42,14 +43,23 @@ $(KATACONFIG): configuration.toml.template Makefile
 
 agent: $(AGENT_BIN)
 
-$(AGENT_BIN): FORCE
+$(AGENT_BIN): agent-build
+	make -C $(KATASRC)/src/agent LIBC=gnu DESTDIR=$(AGENT_TREE) install
+
+agent-build: FORCE
 	make -C $(KATASRC)/src/agent LIBC=gnu
 
 initrd: $(INITRD)
 
-$(INITRD): $(MBUTO) $(AGENT_BIN)
-	$< -c gzip -f $@
+$(INITRD): $(OSBUILDER_SCRIPT) $(AGENT_BIN) $(OSBUILDER_DRACUTFILES)
+	$<
 
+$(DRACUTDIR)/%: dracut/% $(OSBUILDER)
+	cp $< $@
+
+$(OSBUILDER_SCRIPT): vfio-kata-osbuilder.sh.template
+	sed 's!%BUILD%!$(BUILD)!;s!%AGENT_TREE%!$(AGENT_TREE)!;s!%OSBUILDER%!$(OSBUILDER)!' < $< > $@
+	chmod +x $@
 clean:
 	chmod -R u+w $(BUILD) || true
 	rm -rf $(BUILD)

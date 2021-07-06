@@ -6,8 +6,8 @@ set -o pipefail
 
 [ -n "${DEBUG:-}" ] && set -o xtrace
 
-readonly IMAGE_TOPDIR="%KATAPREFIX%/var/cache/kata-containers"
-readonly KERNEL_SYMLINK="${IMAGE_TOPDIR}/vmlinuz.container"
+readonly OUTDIR="%BUILD%"
+readonly KERNEL_SYMLINK="${OUTDIR}/kata-containers-vmlinuz"
 readonly SCRIPTNAME="$0"
 
 readonly DRACUT_ROOTFS=`mktemp --directory -t kata-dracut-rootfs-XXXXXX`
@@ -61,7 +61,7 @@ usage()
 Usage: ${SCRIPTNAME} [options]
 
 This script builds the kata appliance initrd and image and adds
-stable symlink paths in ${IMAGE_TOPDIR}
+stable symlink paths in ${OUTDIR}
 
 This script is called at kata-osbuilder at RPM install %post time and
 via kata-osbuilder-generate.service
@@ -208,11 +208,11 @@ generate_rootfs()
 move_images()
 {
     # Move images into place
-    local image_osbuilder_dir="${IMAGE_TOPDIR}/osbuilder-images"
+    local image_osbuilder_dir="${OUTDIR}/osbuilder-images"
     local image_dir="${image_osbuilder_dir}/$KVERSION"
     local initrd_dest_path="${image_dir}/fedora-kata-${KVERSION}.initrd"
     local image_dest_path="${image_dir}/fedora-kata-${KVERSION}.img"
-    local image_dest_link="${IMAGE_TOPDIR}/kata-containers.img"
+    local image_dest_link="${OUTDIR}/kata-containers.img"
 
     # This blows away the entire osbuilder-images/ dir, deleting any
     # previously cached content
@@ -222,7 +222,7 @@ move_images()
     ln -sf ${KERNEL_PATH} ${KERNEL_SYMLINK}
 
     mv -Z ${GENERATED_INITRD} ${initrd_dest_path}
-    ln -sf ${initrd_dest_path} ${IMAGE_TOPDIR}/kata-containers-initrd.img
+    ln -sf ${initrd_dest_path} ${OUTDIR}/kata-containers-initrd.img
 
     if [ -n "${GENERATE_IMAGE}" ]; then
         mv -Z ${GENERATED_IMAGE} ${image_dest_path}

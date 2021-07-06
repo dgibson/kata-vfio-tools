@@ -12,8 +12,8 @@
 
 [hypervisor.qemu]
 path = "%QEMU%"
-kernel = "%BUILD%/kata-vmlinuz"
-initrd = "%BUILD%/kata-initrd.img"
+kernel = "%BUILD%/kata-containers-vmlinuz"
+initrd = "%BUILD%/kata-containers-initrd.img"
 machine_type = "q35"
 
 # Enable confidential guest support.
