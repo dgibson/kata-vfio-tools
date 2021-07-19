@@ -1,7 +1,8 @@
 CRICTL = sudo crictl
+RUNTIME = kata-vfio
 
 run-%:
-	$(CRICTL) start $$($(CRICTL) create $$($(CRICTL) runp pod.json) container-$*.json pod.json)
+	$(CRICTL) start $$($(CRICTL) create $$($(CRICTL) runp --runtime=$(RUNTIME) pod.json) container-$*.json pod.json)
 
 sh-%: run-%
 	$(CRICTL) exec -it $$($(CRICTL) ps -lq) /bin/sh

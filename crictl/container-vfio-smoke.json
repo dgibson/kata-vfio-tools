@@ -1,11 +1,21 @@
 {
-  "metadata": {
-      "name": "busybox"
-  },
-  "image": {
-      "image": "vfio-smoke"
-  },
-  "log_path":"vfio-smoke.log",
-  "linux": {
+    "metadata": {
+	"name": "vfio-smoke"
+    },
+    "image": {
+	"image": "quay.io/dwg/vfio-smoke:latest"
+    },
+    "log_path":"vfio-smoke.log",
+    "devices": [
+	{
+	    "container_path": "/dev/vfio/vfio",
+	    "host_path": "/dev/vfio/vfio"
+	},
+	{
+	    "container_path": "/dev/vfio/13",
+	    "host_path": "/dev/vfio/13"
+	}
+    ],
+    "linux": {
   }
 }
