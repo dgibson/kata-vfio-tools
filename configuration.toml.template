@@ -5,7 +5,7 @@
 
 # XXX: WARNING: this file is auto-generated.
 # XXX:
-# XXX: Source file: "cli/config/configuration-qemu.toml.in"
+# XXX: Source file: "config/configuration-qemu.toml.in"
 # XXX: Project:
 # XXX:   Name: Kata Containers
 # XXX:   Type: kata
@@ -24,6 +24,11 @@ machine_type = "q35"
 # Default false
 # confidential_guest = true
 
+# Enable running QEMU VMM as a non-root user.
+# By default QEMU VMM run as root. When this is set to true, QEMU VMM process runs as
+# a non-root random user. See documentation for the limitations of this mode.
+# rootless = true
+
 # List of valid annotation names for the hypervisor
 # Each member of the list is a regular expression, which is the base name
 # of the annotation, e.g. "path" for io.katacontainers.config.hypervisor.path"
@@ -32,7 +37,7 @@ enable_annotations = []
 # List of valid annotations values for the hypervisor
 # Each member of the list is a path pattern as described by glob(3).
 # The default if not set is empty (all annotations rejected.)
-# Your distribution recommends: ["%QEMU%"]
+# Your distribution recommends: ["/usr/bin/qemu-system-x86_64"]
 valid_hypervisor_paths = ["%QEMU%"]
 
 # Optional space-separated list of options to pass to the guest kernel.
@@ -137,8 +142,8 @@ virtio_fs_daemon = "%VIRTIOFSD%"
 
 # List of valid annotations values for the virtiofs daemon
 # The default if not set is empty (all annotations rejected.)
-# Your distribution recommends: ["/home/dwg/src/kata-vfio-tools/build/prefix/libexec/kata-qemu/virtiofsd"]
-valid_virtio_fs_daemon_paths = ["/home/dwg/src/kata-vfio-tools/build/prefix/libexec/kata-qemu/virtiofsd"]
+# Your distribution recommends: ["/usr/libexec/kata-qemu/virtiofsd"]
+valid_virtio_fs_daemon_paths = ["%VIRTIOFSD%"]
 
 # Default size of DAX cache in MiB
 virtio_fs_cache_size = 0
@@ -223,7 +228,7 @@ vhost_user_store_path = "/var/run/kata-containers/vhost-user"
 # Enabling this will result in the VM having a vIOMMU device
 # This will also add the following options to the kernel's
 # command line: intel_iommu=on,iommu=pt
-enable_iommu = true
+#enable_iommu = true
 
 # Enable IOMMU_PLATFORM, default false
 # Enabling this will result in the VM device having iommu_platform=on set
@@ -257,7 +262,7 @@ pflashes = []
 # to enable debug output where available.
 #
 # Default false
-enable_debug = true
+#enable_debug = true
 
 # Disable the customizations done in the runtime when it detects
 # that it is running on top a VMM. This will result in the runtime
@@ -314,10 +319,10 @@ valid_entropy_sources = ["/dev/urandom","/dev/random",""]
 # the OCI spec passed to the runtime.
 #
 # You can create a rootfs with hooks by customizing the osbuilder scripts:
-# https://github.com/kata-containers/osbuilder
+# https://github.com/kata-containers/kata-containers/tree/main/tools/osbuilder
 #
 # Hooks must be stored in a subdirectory of guest_hook_path according to their
-# hook type, i.e. "guest_hook_path/{prestart,postart,poststop}".
+# hook type, i.e. "guest_hook_path/{prestart,poststart,poststop}".
 # The agent will scan these directories for executable files and add them, in
 # lexicographical order, to the lifecycle of the guest container.
 # Hooks are executed in the runtime namespace of the guest. See the official documentation:
@@ -355,6 +360,17 @@ valid_entropy_sources = ["/dev/urandom","/dev/random",""]
 #
 # See: https://www.qemu.org/docs/master/qemu-qmp-ref.html#Dump-guest-memory for details
 #guest_memory_dump_paging=false
+
+# Enable swap in the guest. Default false.
+# When enable_guest_swap is enabled, insert a raw file to the guest as the swap device
+# if the swappiness of a container (set by annotation "io.katacontainers.container.resource.swappiness")
+# is bigger than 0.
+# The size of the swap device should be
+# swap_in_bytes (set by annotation "io.katacontainers.container.resource.swap_in_bytes") - memory_limit_in_bytes.
+# If swap_in_bytes is not set, the size should be memory_limit_in_bytes.
+# If swap_in_bytes and memory_limit_in_bytes is not set, the size should
+# be default_memory.
+#enable_guest_swap = true
 
 [factory]
 # VM templating support. Once enabled, new VMs are created from template
@@ -402,28 +418,21 @@ valid_entropy_sources = ["/dev/urandom","/dev/random",""]
 [agent.kata]
 # If enabled, make the agent display debug-level messages.
 # (default: disabled)
-enable_debug = true
+#enable_debug = true
 
 # Enable agent tracing.
 #
-# If enabled, the default trace mode is "dynamic" and the
-# default trace type is "isolated". The trace mode and type are set
-# explicity with the `trace_type=` and `trace_mode=` options.
+# If enabled, the agent will generate OpenTelemetry trace spans.
 #
 # Notes:
 #
-# - Tracing is ONLY enabled when `enable_tracing` is set: explicitly
-#   setting `trace_mode=` and/or `trace_type=` without setting `enable_tracing`
-#   will NOT activate agent tracing.
-#
-# - See https://github.com/kata-containers/agent/blob/master/TRACING.md for
-#   full details.
+# - If the runtime also has tracing enabled, the agent spans will be
+#   associated with the appropriate runtime parent span.
+# - If enabled, the runtime will wait for the container to shutdown,
+#   increasing the container shutdown time slightly.
 #
 # (default: disabled)
 #enable_tracing = true
-#
-#trace_mode = "dynamic"
-#trace_type = "isolated"
 
 # Comma separated list of kernel modules and their parameters.
 # These modules will be loaded in the guest kernel using modprobe(8).
@@ -443,7 +452,7 @@ kernel_modules=[]
 # If enabled, user can connect guest OS running inside hypervisor
 # through "kata-runtime exec <sandbox-id>" command
 
-debug_console_enabled = true
+#debug_console_enabled = true
 
 # Agent connection dialing timeout value in seconds
 # (default: 30)
@@ -458,7 +467,7 @@ debug_console_enabled = true
 #enable_netmon = true
 
 # Specify the path to the netmon binary.
-path = "/home/dwg/src/kata-vfio-tools/build/prefix/libexec/kata-containers/kata-netmon"
+path = "/usr/libexec/kata-containers/kata-netmon"
 
 # If enabled, netmon messages will be sent to the system log
 # (default: disabled)
@@ -468,7 +477,7 @@ path = "/home/dwg/src/kata-vfio-tools/build/prefix/libexec/kata-containers/kata-
 # If enabled, the runtime will log additional debug messages to the
 # system log
 # (default: disabled)
-enable_debug = true
+#enable_debug = true
 #
 # Internetworking model
 # Determines how the VM should be connected to the
@@ -534,7 +543,26 @@ sandbox_cgroup_only=false
 # These will not be exposed to the container workloads, and are only provided for potential guest services.
 sandbox_bind_mounts=[]
 
-vfio_mode = "vfio"
+# VFIO Mode
+# Determines how VFIO devices should be be presented to the container.
+# Options:
+#
+#  - vfio
+#    Matches behaviour of OCI runtimes (e.g. runc) as much as
+#    possible.  VFIO devices will appear in the container as VFIO
+#    character devices under /dev/vfio.  The exact names may differ
+#    from the host (they need to match the VM's IOMMU group numbers
+#    rather than the host's)
+#
+#  - guest-kernel
+#    This is a Kata-specific behaviour that's useful in certain cases.
+#    The VFIO device is managed by whatever driver in the VM kernel
+#    claims it.  This means it will appear as one or more device nodes
+#    or network interfaces depending on the nature of the device.
+#    Using this mode requires specially built workloads that know how
+#    to locate the relevant device interfaces within the VM.
+#
+vfio_mode="guest-kernel"
 
 # Enabled experimental feature list, format: ["a", "b"].
 # Experimental features are features not stable enough for production,
