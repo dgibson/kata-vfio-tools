@@ -23,6 +23,8 @@ ifneq ($(wildcard $(QEMU)),$(QEMU))
 QEMU := /usr/bin/qemu-system-x86_64
 endif
 
+QEMU := $(CURDIR)/scripts/qemu.sh
+
 VIRTIOFSD := /usr/libexec/virtiofsd
 
 export GOPATH = $(BUILD)/go

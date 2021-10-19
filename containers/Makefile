@@ -10,9 +10,13 @@ $(CONTAINERS): %: %/Dockerfile
 
 push: $(CONTAINERS:%=push-%)
 
-push-%: %
-	podman tag localhost/vfio-$* $(IMGPREFIX)/vfio-$*:latest
+tag: $(CONTAINERS:%=tag-%)
+
+push-%: tag-%
 	podman push $(IMGPREFIX)/vfio-$*:latest
+
+tag-%: %
+	podman tag localhost/vfio-$* $(IMGPREFIX)/vfio-$*:latest
 
 clean:
 	rm -f *~

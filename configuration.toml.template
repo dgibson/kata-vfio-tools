@@ -45,7 +45,7 @@ valid_hypervisor_paths = ["%QEMU%"]
 # may stop the virtual machine from booting.
 # To see the list of default parameters, enable hypervisor debug, create a
 # container and look for 'default-kernel-parameters' log entries.
-kernel_params = ""
+kernel_params = "console=ttyS0"
 
 # Path to the firmware.
 # If you want that qemu uses the default firmware leave this option empty
@@ -223,7 +223,7 @@ vhost_user_store_path = "/var/run/kata-containers/vhost-user"
 # Enabling this will result in the VM having a vIOMMU device
 # This will also add the following options to the kernel's
 # command line: intel_iommu=on,iommu=pt
-#enable_iommu = true
+enable_iommu = true
 
 # Enable IOMMU_PLATFORM, default false
 # Enabling this will result in the VM device having iommu_platform=on set
@@ -533,6 +533,8 @@ sandbox_cgroup_only=false
 # If defaults are utilized, these mounts should be available in the guest at `/run/kata-containers/shared/containers/sandbox-mounts`
 # These will not be exposed to the container workloads, and are only provided for potential guest services.
 sandbox_bind_mounts=[]
+
+vfio_mode = "vfio"
 
 # Enabled experimental feature list, format: ["a", "b"].
 # Experimental features are features not stable enough for production,
