@@ -1,0 +1,15 @@
+{
+    "metadata": {
+        "name": "sandbox-vfio",
+        "namespace": "default",
+        "attempt": 1,
+        "uid": "sample-fake-uuid-vfio"
+    },
+    "annotations": {
+	"io.katacontainers.config.hypervisor.enable_iommu": "true",
+	"io.katacontainers.config.runtime.vfio_mode": "vfio"
+    },
+    "logDirectory": "/tmp",
+    "linux": {
+    }
+}
