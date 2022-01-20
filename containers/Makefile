@@ -1,4 +1,4 @@
-CONTAINERS = smoke dpdk true
+CONTAINERS = smoke dpdk true k8s-dpdk
 IMGPREFIX = quay.io/dwg
 
 .PHONY: $(CONTAINERS)
