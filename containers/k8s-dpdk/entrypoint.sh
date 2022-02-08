@@ -22,12 +22,13 @@ env | grep '^PCIDEVICE'
     DEV="$PCIDEVICE_OPENSHIFT_IO_INTELNICS"
     echo "Using device: $DEV"
     echo "Forward mode is: $FORWARD_MODE"
+    echo "Peer is: $PEER_MAC"
 
     lspci -D -v -s $DEV
 
     CMD="$CMD -a $DEV"
 
-    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE -a"
+    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC -a"
 
     echo "About to run: $CMD"
 
