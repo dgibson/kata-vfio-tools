@@ -2,6 +2,16 @@
     "metadata": {
 	"name": "vfio-smoke"
     },
+    "envs": [
+	{
+	    "key": "TESTENV",
+	    "value": "somevalue"
+	},
+	{
+	    "key": "PCIDEVICE_TEST",
+	    "value": "0000:01:00.0"
+	}
+    ],
     "image": {
 	"image": "quay.io/dwg/vfio-smoke:latest"
     },
@@ -17,5 +27,5 @@
 	}
     ],
     "linux": {
-  }
+    }
 }
