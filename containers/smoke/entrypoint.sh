@@ -21,6 +21,9 @@ lspci -D
     NGROUPS=$(ls /dev/vfio | grep -v vfio | wc -l)
     echo "Container sees $NGROUPS IOMMU groups [$VFIOGROUPS]"
 
+    echo "Environment is:"
+    env
+
     for group in $VFIOGROUPS; do
 	echo "Testing group $group"
 	DEVS=$(cd /sys/kernel/iommu_groups/$group/devices && echo *)
