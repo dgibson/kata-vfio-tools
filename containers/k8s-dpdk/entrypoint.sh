@@ -13,6 +13,9 @@ env | grep '^PCIDEVICE'
 (
     set -e
 
+    echo "Environment:"
+    env
+
     if [ ! -c /dev/vfio/vfio ]; then
 	die "Container doesn't see VFIO control device"
     fi
