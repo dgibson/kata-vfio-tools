@@ -26,12 +26,13 @@ env | grep '^PCIDEVICE'
     echo "Using device: $DEV"
     echo "Forward mode is: $FORWARD_MODE"
     echo "Peer is: $PEER_MAC"
+    echo "Max packet length is: $PKTLEN"
 
     lspci -D -v -s $DEV
 
     CMD="$CMD -a $DEV"
 
-    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC -a"
+    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC --max-pkt-len=$PKTLEN -a"
 
     echo "About to run: $CMD"
 
