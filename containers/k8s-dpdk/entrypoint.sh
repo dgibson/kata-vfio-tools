@@ -26,10 +26,10 @@ env | grep '^PCIDEVICE'
     echo "Using device: $DEV"
     echo "Forward mode is: $FORWARD_MODE"
     echo "Peer is: $PEER_MAC"
-    echo "Max packet length is: $PKTLEN"
+    echo "Packet length is: $PKTLEN"
     if [ "$FORWARD_MODE" = "txonly" ]; then
 	if [ -n "$PKTLEN" ]; then
-	    PKTLENOPT="--txpkts $PKTLEN"
+	    PKTLENOPT="--txpkts=$PKTLEN"
 	fi
     fi
 
