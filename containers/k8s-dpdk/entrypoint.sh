@@ -27,12 +27,17 @@ env | grep '^PCIDEVICE'
     echo "Forward mode is: $FORWARD_MODE"
     echo "Peer is: $PEER_MAC"
     echo "Max packet length is: $PKTLEN"
+    if [ "$FORWARD_MODE" = "txonly" ]; then
+	if [ -n "$PKTLEN" ]; then
+	    PKTLENOPT="--txpkts $PKTLEN"
+	fi
+    fi
 
     lspci -D -v -s $DEV
 
     CMD="$CMD -a $DEV"
 
-    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC --max-pkt-len=$PKTLEN -a"
+    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC $PKTLENOPT -a"
 
     echo "About to run: $CMD"
 
