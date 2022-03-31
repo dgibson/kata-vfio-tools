@@ -37,7 +37,7 @@ env | grep '^PCIDEVICE'
 
     CMD="$CMD -a $DEV"
 
-    CMD="$CMD -- --stats-period=2 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC $PKTLENOPT -a"
+    CMD="$CMD -- --stats-period=2 --txd=4096 --rxd=4096 --forward-mode=$FORWARD_MODE --eth-peer=0,$PEER_MAC $PKTLENOPT -a"
 
     echo "About to run: $CMD"
 
